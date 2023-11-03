@@ -19,14 +19,17 @@ function init()
     list[4] = checker16
     list[5] = checker8
 
-    sizes = {}
+    local num = 128
+
+    checkShape = {}
     for i=1,5 do 
-        sizes[i] = {}
-        sizes[i].body = list[i]
-        sizes[i].shapes = GetBodyShapes(list[i])
-        for j=1, # sizes[i].shapes do 
-            SetTag(sizes[i].shapes[j],"invisible")
-            SetTag(sizes[i].shapes[j],"unbreakable")
+        checkShape[i] = {}
+        checkShape[i].size = num/i 
+        checkShape[i].body = list[i]
+        checkShape[i].shapes = GetBodyShapes(list[i])
+        for j=1, # checkShape[i].shapes do 
+            SetTag(checkShape[i].shapes[j],"invisible")
+            SetTag(checkShape[i].shapes[j],"unbreakable")
         end
     end
 end
@@ -47,26 +50,49 @@ end
 
 function tick(dt)
     local currentPos = Vec(0,0,0)
-    local layers = 8
     local tp = GetPlayerCameraTransform()
     local fwd = TransformToParentVec(tp,Vec(0,0,-1))
-    local t = GetBodyTransform(sizes[1].body)
+    local t = GetBodyTransform(checkShape[1].body)
     t.pos = VecAdd(tp.pos,VecScale(fwd,20))
 
 
     
-    for a=1, #sizes do
-        SetBodyTransform(sizes[a].body,t)
-        for i=1,#sizes[a].shapes do 
-            local tshape = GetShapeWorldTransform(sizes[a].shapes[i])
-            DebugCross(tshape.pos)
-            if #QueryAabbShapes(GetShapeBounds(checker)) ~= 0 then 
+  --for a=1, #checkShape do
+  --    SetBodyTransform(checkShape[a].body,t)
+  --    for i=1,#checkShape[a].shapes do 
+  --        local tshape = GetShapeWorldTransform(checkShape[a].shapes[i])
+  --        DebugCross(tshape.pos)
+  --        if #QueryAabbShapes(GetShapeBounds(checker)) ~= 0 then 
+  --            
+  --        end
+  --    end
+  --end
 
+
+    for b=1, #checkShape do
+        SetBodyTransform(checkShape[b].body,t)
+        for i=1,#checkShape[b].shapes do 
+            local shape = checkShape[b].shapes[i]
+            QueryRequire("visible physical")
+            if #QueryAabbShapes(GetShapeBounds(shape)) ~= 0 then 
+                DrawShapeOutline(shape,1,0,0,1)
+                SetTag(shape,"invisible")
+            else 
+                RemoveTag(shape,"invisible")
             end
         end
     end
 end
 
+
+function pointInBox(point, minPoint, maxPoint)
+    for i = 1, 3 do
+        if point[i] < minPoint[i] or point[i] > maxPoint[i] then
+            return false
+        end
+    end
+    return true
+end
 
 function draw(dt)
 end
