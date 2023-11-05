@@ -22,13 +22,13 @@ function init()
     local num = 128
 
     checkShape = {}
-    for i=1,5 do 
+    for i=1,5 do
         checkShape[i] = {}
-        checkShape[i].size = num/i 
+        checkShape[i].size = num/i
         checkShape[i].body = list[i]
         checkShape[i].shapes = GetBodyShapes(list[i])
-        for j=1, # checkShape[i].shapes do 
-            SetTag(checkShape[i].shapes[j],"invisible")
+        for j=1, # checkShape[i].shapes do
+          --  SetTag(checkShape[i].shapes[j],"invisible")
             SetTag(checkShape[i].shapes[j],"unbreakable")
         end
     end
@@ -55,35 +55,46 @@ function tick(dt)
     local t = GetBodyTransform(checkShape[1].body)
     t.pos = VecAdd(tp.pos,VecScale(fwd,20))
 
+    -- for b=1, #checkShape do
+    --     SetBodyTransform(checkShape[b].body,t)
+    --     for i=1,#checkShape[b].shapes do 
+    --         local shape = checkShape[b].shapes[i]
+    --         QueryRequire("visible physical")
+    --         if #QueryAabbShapes(GetShapeBounds(shape)) ~= 0 then 
+    --             DrawShapeOutline(shape,1,0,0,1)
+    --             SetTag(shape,"invisible")
+    --         else 
+    --             RemoveTag(shape,"invisible")
+    --         end
+    --     end
+    -- end
 
-    
-  --for a=1, #checkShape do
-  --    SetBodyTransform(checkShape[a].body,t)
-  --    for i=1,#checkShape[a].shapes do 
-  --        local tshape = GetShapeWorldTransform(checkShape[a].shapes[i])
-  --        DebugCross(tshape.pos)
-  --        if #QueryAabbShapes(GetShapeBounds(checker)) ~= 0 then 
-  --            
-  --        end
-  --    end
-  --end
-
-
-    for b=1, #checkShape do
-        SetBodyTransform(checkShape[b].body,t)
-        for i=1,#checkShape[b].shapes do 
-            local shape = checkShape[b].shapes[i]
-            QueryRequire("visible physical")
-            if #QueryAabbShapes(GetShapeBounds(shape)) ~= 0 then 
-                DrawShapeOutline(shape,1,0,0,1)
-                SetTag(shape,"invisible")
-            else 
-                RemoveTag(shape,"invisible")
-            end
-        end
-    end
+    local search = {}
+    search.depth = 1
+    TrueDepth = 0
+    recursiveSearch(search,t)
+    DebugPrint("here".. TrueDepth)
 end
 
+function recursiveSearch(search,t)
+    TrueDepth = TrueDepth + 1
+    SetBodyTransform(checkShape[search.depth],t)
+    local tNew = Transform()
+    for i=1, #checkShape[search.depth].shapes do
+        DebugLine(GetPlayerTransform().pos,GetShapeWorldTransform(checkShape[search.depth].shapes[i]).pos)
+        tNew = GetShapeWorldTransform(checkShape[search.depth].shapes[i])
+        for j=search.depth,#checkShape[search.depth] do 
+            SetBodyTransform(checkShape[j].body,tNew)
+        end
+    end
+    if search.depth ~= #checkShape then 
+        DebugPrint(search.depth) 
+        search.depth = search.depth + 1
+    else
+        return
+    end 
+    recursiveSearch(search,tNew)
+end
 
 function pointInBox(point, minPoint, maxPoint)
     for i = 1, 3 do
