@@ -2,22 +2,18 @@
 --Modding documentation: http://teardowngame.com/modding
 --API reference: http://teardowngame.com/modding/api.html
 
-function init()
-    checker = FindShape("check",true)
-    checkerBody = GetShapeBody(checker)
+#include ./Birds/Automatic.lua
 
-    checker128 = FindBody("128",true)
-    checker64 = FindBody("64",true)
-    checker32 = FindBody("32",true)
-    checker16 = FindBody("16",true)
-    checker8 = FindBody("8",true)
+function init()
+
+    Spawn("MOD/boxes.xml",Transform())
 
     list = {}
-    list[1] = checker128
-    list[2] = checker64
-    list[3] = checker32
-    list[4] = checker16
-    list[5] = checker8
+    list[1] = FindBody("128",true)
+    list[2] = FindBody("64",true)
+    list[3] = FindBody("32",true)
+    list[4] = FindBody("16",true)
+    list[5] = FindBody("8",true)
 
     local num = 128
 
@@ -28,33 +24,21 @@ function init()
         checkShape[i].body = list[i]
         checkShape[i].shapes = GetBodyShapes(list[i])
         for j=1, # checkShape[i].shapes do
-          --  SetTag(checkShape[i].shapes[j],"invisible")
+            SetTag(checkShape[i].shapes[j],"invisible")
             SetTag(checkShape[i].shapes[j],"unbreakable")
         end
     end
+
+    globalt = Transform()
 end
 
-  --  function tick(dt)
-  --      local t = GetPlayerCameraTransform()
-  --      local pos = t.pos
---
-  --      SetBodyTransform(checkerBody,t)
-  --      local shapes = QueryAabbShapes(VecAdd(pos,Vec(-20,-20,-20)),VecAdd(pos,Vec(20,20,20)))
-  --      for i=1, #shapes do
-  --          if IsShapeTouching(checker,shapes[i]) then 
-  --              DrawShapeHighlight(shapes[i],1)
-  --          end
-  --      end
-  --  end
-
-
 function tick(dt)
-    local currentPos = Vec(0,0,0)
-    local tp = GetPlayerCameraTransform()
-    local fwd = TransformToParentVec(tp,Vec(0,0,-1))
-    local t = GetBodyTransform(checkShape[1].body)
-    t.pos = VecAdd(tp.pos,VecScale(fwd,20))
-
+    if InputDown("t") then
+        local tp = GetPlayerCameraTransform()
+        local fwd = TransformToParentVec(tp,Vec(0,0,-1))
+        globalt = tp
+        globalt.pos = VecAdd(tp.pos,VecScale(fwd,50))
+    end
     -- for b=1, #checkShape do
     --     SetBodyTransform(checkShape[b].body,t)
     --     for i=1,#checkShape[b].shapes do 
@@ -69,31 +53,35 @@ function tick(dt)
     --     end
     -- end
 
-    local search = {}
-    search.depth = 1
-    TrueDepth = 0
-    recursiveSearch(search,t)
-    DebugPrint("here".. TrueDepth)
+
+
+    local depth = 1
+    count = 1
+    recursiveSearch(globalt,depth)
 end
 
-function recursiveSearch(search,t)
-    TrueDepth = TrueDepth + 1
-    SetBodyTransform(checkShape[search.depth],t)
-    local tNew = Transform()
-    for i=1, #checkShape[search.depth].shapes do
-        DebugLine(GetPlayerTransform().pos,GetShapeWorldTransform(checkShape[search.depth].shapes[i]).pos)
-        tNew = GetShapeWorldTransform(checkShape[search.depth].shapes[i])
-        for j=search.depth,#checkShape[search.depth] do 
-            SetBodyTransform(checkShape[j].body,tNew)
+function recursiveSearch(t,depth)
+    SetBodyTransform(checkShape[depth].body,t)
+
+    for i=1, #checkShape[depth].shapes do
+        QueryRequire("physical visible")
+        local shapes = QueryAabbShapes(GetShapeBounds(checkShape[depth].shapes[i]))
+        if #shapes == 0 then
+            AutoDrawAABB(GetShapeBounds(checkShape[depth].shapes[i]))
+        elseif depth ~= #checkShape then 
+            local none = true
+            for j=1,#shapes do 
+                if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
+                    recursiveSearch(GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1)
+                    none = false 
+                    break 
+                end 
+            end
+            if none == true then 
+                AutoDrawAABB(GetShapeBounds(checkShape[depth].shapes[i]))
+            end
         end
     end
-    if search.depth ~= #checkShape then 
-        DebugPrint(search.depth) 
-        search.depth = search.depth + 1
-    else
-        return
-    end 
-    recursiveSearch(search,tNew)
 end
 
 function pointInBox(point, minPoint, maxPoint)
