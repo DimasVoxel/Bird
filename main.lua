@@ -5,7 +5,7 @@
 --[[
 #include ./Birds/Automatic.lua
 #include ./registry.lua
-#include ./lualzw.lua
+
 ]]--
 
 function init()
@@ -97,10 +97,10 @@ function scanAll(debugMode)
     end
 
     ClearKey("savegame.mod.birb")
-  -- if debugMode then
-  --     local str = serialize(cacheAll)
-  --     SetString("savegame.mod.birb",str)
-  -- end
+   if debugMode then
+       local str = serialize(cacheAll)
+       SetString("savegame.mod.birb",str)
+   end
 end
 
 function draw(dt)
@@ -113,19 +113,19 @@ function draw(dt)
    --recursiveSearch(cache,globalt,depth,globalt,id)
   local ids = {}
   ids[#ids+1] = 0
- --  count = 0
-  --for x,yAxis in pairs(cacheAll) do 
-  --    for y,zAxis in pairs(yAxis) do 
-  --        for z in pairs(zAxis) do
-  --            if cacheAll[x][y][z].value == -1 then
-  --                --ids[#ids+1] = cacheAll[x][y][z].id
-  --                 --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
-  --                --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
-  --                AutoDrawAABB(cacheAll[x][y][z].min,cacheAll[x][y][z].max,0,0,0,1)
-  --            end
-  --        end 
-  --    end 
-  --end
+ count = 0
+for x,yAxis in pairs(cacheAll) do 
+    for y,zAxis in pairs(yAxis) do 
+        for z in pairs(zAxis) do
+            if cacheAll[x][y][z].value == -1 then
+                --ids[#ids+1] = cacheAll[x][y][z].id
+                 --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
+                --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
+                AutoDrawAABB(cacheAll[x][y][z].min,cacheAll[x][y][z].max,0,0,0,1)
+            end
+        end 
+    end 
+end
 
 
    -- local depth = 1
@@ -181,24 +181,21 @@ function calculateValue(min,max,cache,value,mainBodyT,tShape,id)
     local dy = math.floor(maxY - minY)
     local dz = math.floor(maxZ - minZ)
 
-    for xi=0,dx do 
-        for yi=0,dy do 
-            for zi=0,dz do
-                local point = TransformToParentPoint(tShape,Vec(xi,yi,zi))
-                local localPoint = AutoVecRound(TransformToLocalPoint(mainBodyT,point))
-                local x,y,z = localPoint[1],localPoint[2],localPoint[3]
-                if not cache[x] then cache[x] = {}             end
-                if not cache[x][y] then cache[x][y] = {}       end
-                if not cache[x][y][z] then cache[x][y][z] = {} end
-                cache[x][y][z] = {}
-                cache[x][y][z].value = value
-                cache[x][y][z].min = AutoVecRound(min)
-                cache[x][y][z].max = AutoVecRound(max)
-                cache[x][y][z].pos = AutoVecRound(point)
-                cache[x][y][z].id = math.floor(id)
-            end
-        end
-    end
+    local xi,yi,zi = 1,1,1 
+    local x,y,z = 1,1,1
+    local point = TransformToParentPoint(tShape,Vec(xi,yi,zi))
+    local localPoint = AutoVecRound(TransformToLocalPoint(mainBodyT,point))
+    local x,y,z = localPoint[1],localPoint[2],localPoint[3]
+    if not cache[x] then cache[x] = {}             end
+    if not cache[x][y] then cache[x][y] = {}       end
+    if not cache[x][y][z] then cache[x][y][z] = {} end
+    cache[x][y][z] = {}
+    cache[x][y][z].value = value
+    cache[x][y][z].min = AutoVecRound(min)
+    cache[x][y][z].max = AutoVecRound(max)
+    cache[x][y][z].pos = AutoVecRound(point)
+    cache[x][y][z].id = math.floor(id)
+
     return cache
 end
 
