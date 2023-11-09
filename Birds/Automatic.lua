@@ -3269,8 +3269,8 @@ end
  		UiRect(rw, rh)
  		UiColor(unpack(AutoPrimaryColor))
  		UiText(text)
- 		UiPop()
  	end
+	 UiPop()
  end
 
 -- ---Takes an alignment and returns a Vector representation.

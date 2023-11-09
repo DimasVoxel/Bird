@@ -1,54 +1,56 @@
-<prefab version="1.4.0">
-	<group name="instance=MOD/boxes.xml" pos="36.0 0.0 6.7" rot="0.0 0.0 0.0">
-		<body tags="128" pos="-13.9 12.8 0.0" dynamic="false">
-			<vox pos="-6.4 -0.0 6.4" collide="false" file="MOD/octtree.vox" object="Octree-33"/>
-			<vox pos="-6.4 -0.0 -6.4" collide="false" file="MOD/octtree.vox" object="Octree-37"/>
-			<vox pos="6.4 -0.0 -6.4" collide="false" file="MOD/octtree.vox" object="Octree-36"/>
-			<vox pos="6.4 -0.0 6.4" collide="false" file="MOD/octtree.vox" object="Octree-32"/>
-			<vox pos="-6.4 -12.8 -6.4" collide="false" file="MOD/octtree.vox" object="Octree-39"/>
-			<vox pos="6.4 -12.8 -6.4" collide="false" file="MOD/octtree.vox" object="Octree-38"/>
-			<vox pos="-6.4 -12.8 6.4" collide="false" file="MOD/octtree.vox" object="Octree-35"/>
-			<vox pos="6.4 -12.8 6.4" collide="false" file="MOD/octtree.vox" object="Octree-34"/>
+<prefab version="1.5.0">
+	<group name="instance=MOD/boxes.xml" pos="35.4 64.2 5.9" rot="0.0 0.0 0.0">
+		<body tags="128" pos="-46.1 0.0 -13.6" dynamic="false">
+			<group pos="16.0 0.0 16.0">
+				<vox tags="invisible" pos="-8.0 0.0 -8.0" collide="false" file="MOD/octtree.vox" object="Octree-39"/>
+				<vox tags="invisible" pos="-8.0 0.0 8.0" collide="false" file="MOD/octtree.vox" object="Octree-35"/>
+				<vox tags="invisible" pos="-8.0 16.00001 8.0" collide="false" file="MOD/octtree.vox" object="Octree-33"/>
+				<vox tags="invisible" pos="-8.0 16.00001 -8.0" collide="false" file="MOD/octtree.vox" object="Octree-37"/>
+				<vox tags="invisible" pos="8.0 16.00001 -8.0" collide="false" file="MOD/octtree.vox" object="Octree-36"/>
+				<vox tags="invisible" pos="8.0 16.00001 8.0" collide="false" file="MOD/octtree.vox" object="Octree-32"/>
+				<vox tags="invisible" pos="8.0 0.0 -8.0" collide="false" file="MOD/octtree.vox" object="Octree-38"/>
+				<vox tags="invisible" pos="8.0 0.0 8.0" collide="false" file="MOD/octtree.vox" object="Octree-34"/>
+			</group>
 		</body>
-		<body tags="64" pos="0.2 0.0 -0.0" dynamic="false">
-			<vox pos="3.2 0.0 3.2" collide="false" file="MOD/octtree.vox" object="Octree-31"/>
-			<vox pos="3.2 6.4 3.2" collide="false" file="MOD/octtree.vox" object="Octree-30"/>
-			<vox pos="3.2 0.0 9.6" collide="false" file="MOD/octtree.vox" object="Octree-29"/>
-			<vox pos="3.2 6.4 9.6" collide="false" file="MOD/octtree.vox" object="Octree-28"/>
-			<vox pos="9.6 0.0 3.2" collide="false" file="MOD/octtree.vox" object="Octree-27"/>
-			<vox pos="9.6 6.4 3.2" collide="false" file="MOD/octtree.vox" object="Octree-26"/>
-			<vox pos="9.6 0.0 9.6" collide="false" file="MOD/octtree.vox" object="Octree-25"/>
-			<vox pos="9.6 6.4 9.6" collide="false" file="MOD/octtree.vox" object="Octree-24"/>
+		<body tags="64" pos="0.0 0.0 0.0" dynamic="false">
+			<vox tags="invisible" pos="4.0 0.0 4.0" collide="false" file="MOD/octtree.vox" object="Octree-31"/>
+			<vox tags="invisible" pos="4.0 8.0 4.0" collide="false" file="MOD/octtree.vox" object="Octree-30"/>
+			<vox tags="invisible" pos="4.0 0.0 11.99999" collide="false" file="MOD/octtree.vox" object="Octree-29"/>
+			<vox tags="invisible" pos="4.0 8.0 11.99999" collide="false" file="MOD/octtree.vox" object="Octree-28"/>
+			<vox tags="invisible" pos="11.99999 0.0 4.0" collide="false" file="MOD/octtree.vox" object="Octree-27"/>
+			<vox tags="invisible" pos="11.99999 8.0 4.0" collide="false" file="MOD/octtree.vox" object="Octree-26"/>
+			<vox tags="invisible" pos="11.99999 0.0 11.99999" collide="false" file="MOD/octtree.vox" object="Octree-25"/>
+			<vox tags="invisible" pos="11.99999 8.0 11.99999" collide="false" file="MOD/octtree.vox" object="Octree-24"/>
 		</body>
-		<body tags="32" pos="14.0 0.0 6.4" dynamic="false">
-			<vox pos="1.59999 0.0 4.8" collide="false" file="MOD/octtree.vox" object="Octree-23"/>
-			<vox pos="1.59999 0.0 1.6" collide="false" file="MOD/octtree.vox" object="Octree-22"/>
-			<vox pos="1.59999 3.2 4.8" collide="false" file="MOD/octtree.vox" object="Octree-21"/>
-			<vox pos="1.59999 3.2 1.6" collide="false" file="MOD/octtree.vox" object="Octree-20"/>
-			<vox pos="4.8 0.0 4.8" collide="false" file="MOD/octtree.vox" object="Octree-19"/>
-			<vox pos="4.8 0.0 1.6" collide="false" file="MOD/octtree.vox" object="Octree-18"/>
-			<vox pos="4.8 3.2 4.8" collide="false" file="MOD/octtree.vox" object="Octree-17"/>
-			<vox pos="4.8 3.2 1.6" collide="false" file="MOD/octtree.vox" object="Octree-16"/>
+		<body tags="32" pos="18.9 0.0 3.8" dynamic="false">
+			<vox tags="invisible" pos="1.99999 0.0 6.0" collide="false" file="MOD/octtree.vox" object="Octree-23"/>
+			<vox tags="invisible" pos="1.99999 0.0 2.0" collide="false" file="MOD/octtree.vox" object="Octree-22"/>
+			<vox tags="invisible" pos="1.99999 4.0 6.0" collide="false" file="MOD/octtree.vox" object="Octree-21"/>
+			<vox tags="invisible" pos="1.99999 4.0 2.0" collide="false" file="MOD/octtree.vox" object="Octree-20"/>
+			<vox tags="invisible" pos="6.0 0.0 6.0" collide="false" file="MOD/octtree.vox" object="Octree-19"/>
+			<vox tags="invisible" pos="6.0 0.0 2.0" collide="false" file="MOD/octtree.vox" object="Octree-18"/>
+			<vox tags="invisible" pos="6.0 4.0 6.0" collide="false" file="MOD/octtree.vox" object="Octree-17"/>
+			<vox tags="invisible" pos="6.0 4.0 2.0" collide="false" file="MOD/octtree.vox" object="Octree-16"/>
 		</body>
-		<body tags="16" pos="21.2 0.0 9.6" dynamic="false">
-			<vox pos="0.79999 0.0 2.4" collide="false" file="MOD/octtree.vox" object="Octree-15"/>
-			<vox pos="2.39999 0.0 2.4" collide="false" file="MOD/octtree.vox" object="Octree-14"/>
-			<vox pos="0.79999 0.0 0.8" collide="false" file="MOD/octtree.vox" object="Octree-13"/>
-			<vox pos="2.39999 0.0 0.8" collide="false" file="MOD/octtree.vox" object="Octree-12"/>
-			<vox pos="0.79999 1.6 2.4" collide="false" file="MOD/octtree.vox" object="Octree-11"/>
-			<vox pos="2.39999 1.6 2.4" collide="false" file="MOD/octtree.vox" object="Octree-10"/>
-			<vox pos="0.79999 1.6 0.8" collide="false" file="MOD/octtree.vox" object="Octree-9"/>
-			<vox pos="2.39999 1.6 0.8" collide="false" file="MOD/octtree.vox" object="Octree-8"/>
+		<body tags="16" pos="30.5 0.0 5.0" dynamic="false">
+			<vox tags="invisible" pos="0.99999 0.0 3.0" collide="false" file="MOD/octtree.vox" object="Octree-15"/>
+			<vox tags="invisible" pos="2.99999 0.0 3.0" collide="false" file="MOD/octtree.vox" object="Octree-14"/>
+			<vox tags="invisible" pos="0.99999 0.0 1.0" collide="false" file="MOD/octtree.vox" object="Octree-13"/>
+			<vox tags="invisible" pos="2.99999 0.0 1.0" collide="false" file="MOD/octtree.vox" object="Octree-12"/>
+			<vox tags="invisible" pos="0.99999 2.0 3.0" collide="false" file="MOD/octtree.vox" object="Octree-11"/>
+			<vox tags="invisible" pos="2.99999 2.0 3.0" collide="false" file="MOD/octtree.vox" object="Octree-10"/>
+			<vox tags="invisible" pos="0.99999 2.0 1.0" collide="false" file="MOD/octtree.vox" object="Octree-9"/>
+			<vox tags="invisible" pos="2.99999 2.0 1.0" collide="false" file="MOD/octtree.vox" object="Octree-8"/>
 		</body>
-		<body tags="8" pos="25.1 0.0 11.2" dynamic="false">
-			<vox pos="1.2 0.8 0.4" collide="false" file="MOD/octtree.vox" object="Octree-0"/>
-			<vox pos="0.4 0.0 1.2" collide="false" file="MOD/octtree.vox" object="Octree-7"/>
-			<vox pos="0.4 0.0 0.4" collide="false" file="MOD/octtree.vox" object="Octree-6"/>
-			<vox pos="0.4 0.8 1.2" collide="false" file="MOD/octtree.vox" object="Octree-5"/>
-			<vox pos="0.4 0.8 0.4" collide="false" file="MOD/octtree.vox" object="Octree-4"/>
-			<vox pos="1.2 0.0 1.2" collide="false" file="MOD/octtree.vox" object="Octree-3"/>
-			<vox pos="1.2 0.0 0.4" collide="false" file="MOD/octtree.vox" object="Octree-2"/>
-			<vox pos="1.2 0.8 1.2" collide="false" file="MOD/octtree.vox" object="Octree-1"/>
+		<body tags="8" pos="38.0 0.0 11.9" dynamic="false">
+			<vox tags="invisible" pos="1.5 1.0 0.5" collide="false" file="MOD/octtree.vox" object="Octree-0"/>
+			<vox tags="invisible" pos="0.5 0.0 1.5" collide="false" file="MOD/octtree.vox" object="Octree-7"/>
+			<vox tags="invisible" pos="0.5 0.0 0.5" collide="false" file="MOD/octtree.vox" object="Octree-6"/>
+			<vox tags="invisible" pos="0.5 1.0 1.5" collide="false" file="MOD/octtree.vox" object="Octree-5"/>
+			<vox tags="invisible" pos="0.5 1.0 0.5" collide="false" file="MOD/octtree.vox" object="Octree-4"/>
+			<vox tags="invisible" pos="1.5 0.0 1.5" collide="false" file="MOD/octtree.vox" object="Octree-3"/>
+			<vox tags="invisible" pos="1.5 0.0 0.5" collide="false" file="MOD/octtree.vox" object="Octree-2"/>
+			<vox tags="invisible" pos="1.5 1.0 1.5" collide="false" file="MOD/octtree.vox" object="Octree-1"/>
 		</body>
 	</group>
 </prefab>

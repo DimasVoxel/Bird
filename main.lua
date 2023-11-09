@@ -8,12 +8,16 @@
 
 ]]--
 
-function init()
+-- Local is faster than global
+local G_cache = {}
+local cacheSort = {}
+local checkShape = {}
 
+function init()
     Spawn("MOD/boxes.xml",Transform())
 
     list = {}
-    --list[#list+1] = FindBody("128",true)
+    list[#list+1] = FindBody("128",true)
     list[#list+1] = FindBody("64",true)
     list[#list+1] = FindBody("32",true)
     list[#list+1] = FindBody("16",true)
@@ -21,7 +25,6 @@ function init()
 
     local num = 128
 
-    checkShape = {}
     for i=1,#list do
         checkShape[i] = {}
         checkShape[i].size = num/i
@@ -33,12 +36,7 @@ function init()
             SetTag(checkShape[i].shapes[j],"ground")
         end
     end
-
-    globalt = Transform()
-
-
-
-    scanAll(true)
+    scanAll()
 end
 
 function scanAll(debugMode)
@@ -49,8 +47,10 @@ function scanAll(debugMode)
     local minZ,maxZ = min[3],max[3]
     local count = 0
 
-    cacheAll = {}
-    local octtreeSize = 16
+    for i=1,#list do 
+        cacheSort[i] = {}
+    end
+    local octtreeSize = 32
 
     local xi,yi,zi = 0,0,0
     DebugLine(GetBodyTransform(checkShape[1].body).pos)
@@ -60,34 +60,19 @@ function scanAll(debugMode)
                 if count == 1 then 
                     --break
                 end
-
                 count = count + 1
-                local depth = 1
-                local id = count+x+y+z
+                globalt= Transform(Vec(x,y,z))
+                
+                cache = {}
+                cache = recursiveSearch(cache,globalt,1,globalt)
+                for i=1,#cache do 
+                    G_cache[#G_cache+1] = {}
+                    G_cache[#G_cache].value = cache[i].value
+                    G_cache[#G_cache].min   = VecCopy(cache[i].min)
+                    G_cache[#G_cache].max   = VecCopy(cache[i].max)
+                    G_cache[#G_cache].pos   = cache[i].pos
 
-                globalt.pos = Vec(x,y,z)
-
-                local cache = {}
-                cache = recursiveSearch(cache,globalt,depth,globalt,id)
-                for xL,yAxis in pairs(cache) do 
-                    for yL,zAxis in pairs(yAxis) do 
-                        for zL in pairs(zAxis) do
-                            --G as in global
-                            local gX = xL + xi
-                            local gY = yL + yi
-                            local gZ = zL + zi
-
-                            if not cacheAll[gX]         then cacheAll[gX] = {}         end
-                            if not cacheAll[gX][gY]     then cacheAll[gX][gY] = {}     end
-                            if not cacheAll[gX][gY][gZ] then cacheAll[gX][gY][gZ] = {} end
-                            cacheAll[gX][gY][gZ] = {}
-                            cacheAll[gX][gY][gZ].value = cache[xL][yL][zL].value
-                            cacheAll[gX][gY][gZ].min   = VecCopy(cache[xL][yL][zL].min)
-                            cacheAll[gX][gY][gZ].max   = VecCopy(cache[xL][yL][zL].max)
-                            cacheAll[gX][gY][gZ].pos   = cache[xL][yL][zL].pos
-                            cacheAll[gX][gY][gZ].id    = cache[xL][yL][zL].id
-                        end 
-                    end 
+                    cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
                 end
                 zi = zi + octtreeSize
             end
@@ -98,57 +83,85 @@ function scanAll(debugMode)
 
     ClearKey("savegame.mod.birb")
    if debugMode then
-       local str = serialize(cacheAll)
+       local str = serialize(G_cache)
        SetString("savegame.mod.birb",str)
    end
 end
 
-function draw(dt)
+function determinNeighbours()
+    for index=#cacheSort,1, -1 do
+        local directions = {}
+        directions[1] = {0, G_cache[cacheSort[index][1]].max[2] - G_cache[cacheSort[index][1]].min[2]}
+        directions[2] = {0, G_cache[cacheSort[index][1]].min[2] - G_cache[cacheSort[index][1]].max[2]}
+        directions[3] = {G_cache[cacheSort[index][1]].min[1] - G_cache[cacheSort[index][1]].max[1], 0}
+        directions[4] = {G_cache[cacheSort[index][1]].max[1] - G_cache[cacheSort[index][1]].min[1], 0}
+        directions[5] = {0, 0, G_cache[cacheSort[index][1]].max[3] - G_cache[cacheSort[index][1]].min[3]}
+        directions[6] = {0, 0, G_cache[cacheSort[index][1]].min[3] - G_cache[cacheSort[index][1]].max[3]}
+        for i=1,#cacheSort[index] do
+            local indexG = cacheSort[index][i]
+            for dirI=1,#directions do
+                local point = VecAdd(G_cache[indexG].pos,directions[dirI])
+                for cacheNewIndex=(#cacheSort+1) - index,1,-1 do
+                    for all=1,#cacheSort[cacheNewIndex] do 
+                    --pointInBox(point,G_cache[cacheSort[index]])
+                    AutoDrawAABB(G_cache[all].min,G_cache[all].max,0,0,0,1)
+                    end
+                   
+                end
+            end
 
+            DebugLine(G_cache[indexG].pos,VecAdd(G_cache[indexG].pos,directions[1]))
+            AutoDrawAABB(G_cache[indexG].min,G_cache[indexG].max,0,0,0,1)
+        end
+        break
+    end
+end
+
+function draw(dt)
+    determinNeighbours()
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
     --scanAll()
    -- local cache = {}
    -- local depth = 1 
    -- local id = 1
-   --recursiveSearch(cache,globalt,depth,globalt,id)
-  local ids = {}
-  ids[#ids+1] = 0
- count = 0
-for x,yAxis in pairs(cacheAll) do 
-    for y,zAxis in pairs(yAxis) do 
-        for z in pairs(zAxis) do
-            if cacheAll[x][y][z].value == -1 then
-                --ids[#ids+1] = cacheAll[x][y][z].id
-                 --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
-                --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
-                AutoDrawAABB(cacheAll[x][y][z].min,cacheAll[x][y][z].max,0,0,0,1)
-            end
-        end 
-    end 
+  ----recursiveSearch(cache,globalt,depth,globalt,id),
+  --for j=1,#cacheSort do 
+  --    local indexi = j
+  --    for i=1,#cacheSort[indexi] do 
+  --        local index = cacheSort[indexi][i]
+  --        --ids[#ids+1] = cacheAll[x][y][z].id
+  --        --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
+  --        --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
+  --       -- AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
+  --        DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+  --    end
+
+  --    
+  --  --  
+  --end
+
+ --  for i=1,#G_cache do 
+ --      --ids[#ids+1] = cacheAll[x][y][z].id
+ --      --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
+ --      --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
+ --   --   AutoDrawAABB(G_cache[i].min,G_cache[i].max,0,0,0,1)
+ --      DebugLine(G_cache[i].pos,VecAdd(G_cache[i].pos,Vec(0,G_cache[i].max[2]-G_cache[i].min[2],0)))
+ --  end
 end
 
-
-   -- local depth = 1
-   -- count = 1
-   -- recursiveSearch(globalt,depth)
-   -- print("start")
-end
-
+local L
 
 function recursiveSearch(cache,t,depth,mainBodyT,count)
     SetBodyTransform(checkShape[depth].body,t)
     local cost = math.pow(2,depth)
     for i=1, #checkShape[depth].shapes do
+        
         QueryRequire("physical visible")
-
-        local id = depth+checkShape[depth].shapes[i]+count
         local min,max = GetShapeBounds(checkShape[depth].shapes[i])
         local shapes = QueryAabbShapes(min,max)
         local tShape = GetShapeWorldTransform(checkShape[depth].shapes[i])
-       -- AutoDrawAABB(min,max,0,0,0,0.5)
         if #shapes == 0 then
-           calculateValue(min,max,cache,cost,mainBodyT,tShape,id)
-            --AutoDrawAABB(min,max,0,0,0,1)
+           calculateValue(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
         else
             local none = true
             for j=1,#shapes do 
@@ -161,41 +174,24 @@ function recursiveSearch(cache,t,depth,mainBodyT,count)
                 end 
             end
             if none == true then 
-                --AutoDrawAABB(min,max,0,0,0,1)
-                calculateValue(min,max,cache,cost,mainBodyT,tShape,id)
-            elseif depth == 4 then
-                --AutoDrawAABB(min,max,0,0,0,1)
-                calculateValue(min,max,cache,-1,mainBodyT,tShape,id)
+                calculateValue(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
+            elseif depth == #checkShape then
+                calculateValue(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)
             end
         end
     end
     return cache
 end
 
-function calculateValue(min,max,cache,value,mainBodyT,tShape,id)
-    local minX,maxX = min[1],max[1]
-    local minY,maxY = min[2],max[2]
-    local minZ,maxZ = min[3],max[3]
+function calculateValue(min,max,cache,value,depth)
+    local index = #cache+1
+    cache[index] = {}
 
-    local dx = math.floor(maxX - minX)
-    local dy = math.floor(maxY - minY)
-    local dz = math.floor(maxZ - minZ)
-
-    local xi,yi,zi = 1,1,1 
-    local x,y,z = 1,1,1
-    local point = TransformToParentPoint(tShape,Vec(xi,yi,zi))
-    local localPoint = AutoVecRound(TransformToLocalPoint(mainBodyT,point))
-    local x,y,z = localPoint[1],localPoint[2],localPoint[3]
-    if not cache[x] then cache[x] = {}             end
-    if not cache[x][y] then cache[x][y] = {}       end
-    if not cache[x][y][z] then cache[x][y][z] = {} end
-    cache[x][y][z] = {}
-    cache[x][y][z].value = value
-    cache[x][y][z].min = AutoVecRound(min)
-    cache[x][y][z].max = AutoVecRound(max)
-    cache[x][y][z].pos = AutoVecRound(point)
-    cache[x][y][z].id = math.floor(id)
-
+    cache[index].value = value
+    cache[index].min = min
+    cache[index].max = max
+    cache[index].pos = VecLerp(min,max,0.5)
+    cache[index].depth = depth
     return cache
 end
 
