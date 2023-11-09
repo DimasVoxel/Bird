@@ -3,7 +3,7 @@
 	<script file="main.lua"/>
 	<script file="sandbox.lua"/>
 	<voxbox pos="-0.4 0.0 -2.1" size="298 1 271" offset="246.0 0.0 229.0"/>
+	<voxbox pos="18.1 0.0 -13.6" rot="0.0 0.0 90.0" size="243 78 500" offset="246.0 -184.99998 114.00001"/>
 	<spawnpoint pos="17.4 0.1 16.4" rot="0 180 0"/>
-	<instance pos="35.4 64.2 5.9" rot="0.0 0.0 0.0" file="MOD/boxes.xml"/>
 </scene>
 

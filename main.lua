@@ -57,22 +57,21 @@ function scanAll(debugMode)
     for x=minX,maxX,octtreeSize do
         for y=minY,maxY,octtreeSize do 
             for z=minZ,maxZ,octtreeSize do
-                if count == 1 then 
-                    --break
-                end
-                count = count + 1
                 globalt= Transform(Vec(x,y,z))
                 
                 cache = {}
                 cache = recursiveSearch(cache,globalt,1,globalt)
+                
                 for i=1,#cache do 
-                    G_cache[#G_cache+1] = {}
-                    G_cache[#G_cache].value = cache[i].value
-                    G_cache[#G_cache].min   = VecCopy(cache[i].min)
-                    G_cache[#G_cache].max   = VecCopy(cache[i].max)
-                    G_cache[#G_cache].pos   = cache[i].pos
-
-                    cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
+                    if cache[i].cost ~= -1 then
+                        G_cache[#G_cache+1] = {}
+                        G_cache[#G_cache].cost = cache[i].cost
+                        G_cache[#G_cache].min   = VecCopy(cache[i].min)
+                        G_cache[#G_cache].max   = VecCopy(cache[i].max)
+                        G_cache[#G_cache].pos   = cache[i].pos
+                        G_cache[#G_cache].nearby = {} 
+                        cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
+                    end
                 end
                 zi = zi + octtreeSize
             end
@@ -81,60 +80,98 @@ function scanAll(debugMode)
         xi = xi + octtreeSize
     end
 
+
+    determinNeighbours()
+
     ClearKey("savegame.mod.birb")
-   if debugMode then
-       local str = serialize(G_cache)
-       SetString("savegame.mod.birb",str)
-   end
-end
-
-function determinNeighbours()
-    for index=#cacheSort,1, -1 do
-        local directions = {}
-        directions[1] = {0, G_cache[cacheSort[index][1]].max[2] - G_cache[cacheSort[index][1]].min[2]}
-        directions[2] = {0, G_cache[cacheSort[index][1]].min[2] - G_cache[cacheSort[index][1]].max[2]}
-        directions[3] = {G_cache[cacheSort[index][1]].min[1] - G_cache[cacheSort[index][1]].max[1], 0}
-        directions[4] = {G_cache[cacheSort[index][1]].max[1] - G_cache[cacheSort[index][1]].min[1], 0}
-        directions[5] = {0, 0, G_cache[cacheSort[index][1]].max[3] - G_cache[cacheSort[index][1]].min[3]}
-        directions[6] = {0, 0, G_cache[cacheSort[index][1]].min[3] - G_cache[cacheSort[index][1]].max[3]}
-        for i=1,#cacheSort[index] do
-            local indexG = cacheSort[index][i]
-            for dirI=1,#directions do
-                local point = VecAdd(G_cache[indexG].pos,directions[dirI])
-                for cacheNewIndex=(#cacheSort+1) - index,1,-1 do
-                    for all=1,#cacheSort[cacheNewIndex] do 
-                    --pointInBox(point,G_cache[cacheSort[index]])
-                    AutoDrawAABB(G_cache[all].min,G_cache[all].max,0,0,0,1)
-                    end
-                   
-                end
-            end
-
-            DebugLine(G_cache[indexG].pos,VecAdd(G_cache[indexG].pos,directions[1]))
-            AutoDrawAABB(G_cache[indexG].min,G_cache[indexG].max,0,0,0,1)
-        end
-        break
+    if debugMode then
+        local str = serialize(G_cache)
+        SetString("savegame.mod.birb",str)
     end
 end
 
+function determinNeighbours()
+    local counter = 0
+    for index = #cacheSort, 1, -1 do
+        local boxesInThisDepth = cacheSort[index]
+
+        if #boxesInThisDepth == 0 then
+            -- Skip the loop if there are no boxes in this depth
+        else
+            local directions = {}
+            local currentBox = boxesInThisDepth[1]
+            local minBox = G_cache[currentBox].min
+            local maxBox = G_cache[currentBox].max
+
+            directions[1] = {0, maxBox[2] - minBox[2]}
+            directions[2] = {0, minBox[2] - maxBox[2]}
+            directions[3] = {minBox[1] - maxBox[1], 0}
+            directions[4] = {maxBox[1] - minBox[1], 0}
+            directions[5] = {0, 0, maxBox[3] - minBox[3]}
+            directions[6] = {0, 0, minBox[3] - maxBox[3]}
+
+            for allBoxesInThisDepth = 1, #boxesInThisDepth do
+                currentBox = boxesInThisDepth[allBoxesInThisDepth]
+                local posCurrentBox = G_cache[currentBox].pos
+                local neighborCount = 0  -- Variable to count neighbors
+
+                for dirI = 1, #directions do
+                    local dir = directions[dirI]
+                    local point = {posCurrentBox[1] + dir[1], posCurrentBox[2] + dir[2], posCurrentBox[3] + (dir[3] or 0)}
+
+                    for j = 1, index do
+                        for i = 1, #cacheSort[j] do
+                            local boxWeFound = cacheSort[j][i]
+                            counter = counter + 1
+                            if pointInBox(point, G_cache[boxWeFound].min, G_cache[boxWeFound].max) then
+                                G_cache[currentBox].nearby[#G_cache[currentBox].nearby + 1] = boxWeFound
+                                G_cache[boxWeFound].nearby[#G_cache[boxWeFound].nearby + 1] = currentBox
+                                neighborCount = neighborCount + 1
+                                if neighborCount == 6 then
+                                    break  -- Stop when 6 neighbors are found
+                                end
+                            end
+                        end
+
+                        if neighborCount == 6 then
+                            break  -- Stop when 6 neighbors are found
+                        end
+                    end
+
+                    if neighborCount == 6 then
+                        break  -- Stop when 6 neighbors are found
+                    end
+                end
+            end
+        end
+    end
+end
+
+
+
 function draw(dt)
-    determinNeighbours()
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
     --scanAll()
    -- local cache = {}
    -- local depth = 1 
    -- local id = 1
   ----recursiveSearch(cache,globalt,depth,globalt,id),
-  --for j=1,#cacheSort do 
-  --    local indexi = j
-  --    for i=1,#cacheSort[indexi] do 
-  --        local index = cacheSort[indexi][i]
-  --        --ids[#ids+1] = cacheAll[x][y][z].id
-  --        --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
-  --        --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-  --       -- AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
-  --        DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
-  --    end
+    for j=1,#cacheSort do 
+        local indexi = j
+        for i=1,#cacheSort[indexi] do 
+            local index = cacheSort[indexi][i]
+            --ids[#ids+1] = cacheAll[x][y][z].id
+            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
+            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
+            --AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
+            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+            for i=1,#G_cache[index].nearby do 
+                local otherPos = G_cache[G_cache[index].nearby[i]].pos
+                DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
+            end
+            DebugCross(G_cache[index].pos)
+        end
+    end
 
   --    
   --  --  
@@ -142,14 +179,13 @@ function draw(dt)
 
  --  for i=1,#G_cache do 
  --      --ids[#ids+1] = cacheAll[x][y][z].id
- --      --AutoTooltip(cacheAll[x][y][z].value,cacheAll[x][y][z].pos,false,2,1)
+ --      --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
  --      --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
  --   --   AutoDrawAABB(G_cache[i].min,G_cache[i].max,0,0,0,1)
  --      DebugLine(G_cache[i].pos,VecAdd(G_cache[i].pos,Vec(0,G_cache[i].max[2]-G_cache[i].min[2],0)))
  --  end
 end
 
-local L
 
 function recursiveSearch(cache,t,depth,mainBodyT,count)
     SetBodyTransform(checkShape[depth].body,t)
@@ -161,7 +197,7 @@ function recursiveSearch(cache,t,depth,mainBodyT,count)
         local shapes = QueryAabbShapes(min,max)
         local tShape = GetShapeWorldTransform(checkShape[depth].shapes[i])
         if #shapes == 0 then
-           calculateValue(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
+           calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
         else
             local none = true
             for j=1,#shapes do 
@@ -174,20 +210,20 @@ function recursiveSearch(cache,t,depth,mainBodyT,count)
                 end 
             end
             if none == true then 
-                calculateValue(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
-            elseif depth == #checkShape then
-                calculateValue(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)
+                calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
+            --elseif depth == #checkShape then
+            --    calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)
             end
         end
     end
     return cache
 end
 
-function calculateValue(min,max,cache,value,depth)
+function calculateCost(min,max,cache,cost,depth)
     local index = #cache+1
     cache[index] = {}
 
-    cache[index].value = value
+    cache[index].cost = cost
     cache[index].min = min
     cache[index].max = max
     cache[index].pos = VecLerp(min,max,0.5)
