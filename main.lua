@@ -67,25 +67,27 @@ function scanAll(debugMode)
                     if cache[i].cost ~= -1 then
                         G_cache[#G_cache+1] = {}
                         G_cache[#G_cache].cost = cache[i].cost
-                        G_cache[#G_cache].min   = VecCopy(cache[i].min)
-                        G_cache[#G_cache].max   = VecCopy(cache[i].max)
+                        local cmin = VecCopy(cache[i].min)
+                        local cmax = VecCopy(cache[i].max)
+                        G_cache[#G_cache].min  = cmin
+                        G_cache[#G_cache].max   = cmax
                         G_cache[#G_cache].pos   = cache[i].pos
 
                         G_cache[#G_cache].faces = {}
 
+                        
                         -- Up face
-                        G_cache[#G_cache].faces.up = {min = {min[1], max[2], min[3]}, max = max}
+                        G_cache[#G_cache].faces.up = {min = {cmin[1], cmax[2], cmin[3]}, max = cmax}
                         -- Down face
-                        G_cache[#G_cache].faces.down = {min = min, max = {max[1], min[2], max[3]}}
+                        G_cache[#G_cache].faces.down = {min = cmin, max = {cmax[1], cmin[2], cmax[3]}}
                         -- Left face
-                        G_cache[#G_cache].faces.left = {min = min, max = {min[1], max[2], max[3]}}
+                        G_cache[#G_cache].faces.left = {min = cmin, max = {cmin[1], cmax[2], cmax[3]}}
                         -- Right face
-                        G_cache[#G_cache].faces.right = {min = {max[1], min[2], min[3]}, max = max}
+                        G_cache[#G_cache].faces.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
                         -- Forward face
-                        G_cache[#G_cache].faces.forward = {min = min, max = {max[1], max[2], min[3]}}
+                        G_cache[#G_cache].faces.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
                         -- Backward face
-                        G_cache[#G_cache].faces.backward = {min = {min[1], min[2], max[3]}, max = max}
-
+                        G_cache[#G_cache].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
 
                         G_cache[#G_cache].nearby = {}
                         cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
@@ -98,8 +100,9 @@ function scanAll(debugMode)
         xi = xi + octtreeSize
     end
     calculateGrid()
+    determinNeighbours()
 
-   -- determinNeighboursOld()
+    --determinNeighboursOld()
 
     ClearKey("savegame.mod.birb")
     if debugMode then
@@ -111,14 +114,14 @@ end
 function calculateGrid()
     for index=1,#G_cache do
         local faces = G_cache[index].faces
-        for _,p in pairs(faces) do --p as in point either min or max
-            for x=p.min[1],p.max[1],10 do 
+        for dir,p in pairs(faces) do --p as in point either min or max
+            for x=p.min[1],p.max[1],1 do 
                 if not vertecies[x] then vertecies[x] = {} end
-                for y=p.min[2],max[2],10 do 
+                for y=p.min[2],p.max[2],1 do 
                     if not vertecies[x][y] then vertecies[x][y] = {} end
-                    for z=p.min[3],max[3],10 do
+                    for z=p.min[3],p.max[3],1 do
                         if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
-                        vertecies[x][y][z].entries[#vertecies[x][y][z].entries+1] = index
+                        vertecies[x][y][z][#vertecies[x][y][z]+1] = index
                     end
                 end
             end
@@ -126,11 +129,51 @@ function calculateGrid()
     end
 end
 
-function determinNeighboursOld()
-
+function calculateFaceCorners(min, max)
+    local corners = {}
+    -- Corner 1 (min values)
+    corners[1] = {min[1], min[2], min[3]}
+    -- Corner 2 (max x, min y, min z)
+    corners[2] = {max[1], min[2], min[3]}
+    -- Corner 3 (max values)
+    corners[3] = {max[1], max[2], max[3]}
+    -- Corner 4 (min x, max y, min z)
+    corners[4] = {min[1], max[2], min[3]}
+    return corners
 end
 
-function determinNeighboursOld()
+function determinNeighbours()
+    count = 1
+    for index=1,#G_cache do
+        local results = {}
+        local faces = G_cache[index].faces
+        for dir,p in pairs(faces) do --p as in point either min or max
+            local vert = calculateFaceCorners(p.min,p.max)
+            for num=1,#vert do 
+                local x1,x2,x3 = vert[num][1],vert[num][2],vert[num][3]
+                for i=1, #vertecies[x1][x2][x3] do 
+                    local values = vertecies[x1][x2][x3]
+                    for v=1,#values do
+                        count = count + 1
+                        if not results[values[v]] then 
+                            results[values[v]] = 1 
+                        else
+                            results[values[v]] = results[values[v]]+1 
+                            if results[values[v]] == 3 then 
+                                G_cache[index].nearby[#G_cache[index].nearby+1] = values[v]
+                                break 
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    DebugPrint(count)
+    DebugPrint(#G_cache)
+end
+
+function determinNeighboursOld()    -- Super slow super bad
     local counter = 0
     for index = #cacheSort, 1, -1 do
         local boxesInThisDepth = cacheSort[index]
@@ -185,41 +228,52 @@ function determinNeighboursOld()
             end
         end
     end
+    DebugPrint(count)
+    DebugPrint(#G_cache)
 end
 
 
 
 function draw(dt)
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
-    --scanAll()
 --local cache = {}
 --local depth = 1 
 
-    for x,yAxis in pairs(vertecies) do 
-        for y,zAxis in pairs(yAxis) do 
-            for z,value in pairs(zAxis) do 
-                DebugCross(Vec(x,y,z))
-            end
-        end
-    end
+  --for x,yAxis in pairs(vertecies) do 
+  --    for y,zAxis in pairs(yAxis) do 
+  --        for z,value in pairs(zAxis) do 
 
--- recursiveSearch(cache,globalt,depth,globalt)
-  -- for j=1,#cacheSort do 
-  --     local indexi = j
-  --     for i=1,#cacheSort[indexi] do 
-  --         local index = cacheSort[indexi][i]
-  --         --ids[#ids+1] = cacheAll[x][y][z].id
-  --         --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
-  --         --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-  --         --AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
-  --         --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
-  --         for i=1,#G_cache[index].nearby do 
-  --             local otherPos = G_cache[G_cache[index].nearby[i]].pos
-  --             DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
-  --         end
-  --         DebugCross(G_cache[index].pos)
-  --     end
-  -- end
+  --         
+  -- 
+  --        end
+  --      
+  --    end
+  --
+  --end
+--
+--
+ --   local p = GetPlayerPos()
+ ----recursiveSearch(cache,globalt,depth,globalt)
+ -- for j=1,#cacheSort do 
+ --     local indexi = j
+ --     for i=1,#cacheSort[indexi] do 
+ --         local index = cacheSort[indexi][i]
+ --         --ids[#ids+1] = cacheAll[x][y][z].id
+ --         --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
+ --         --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
+ --       --  AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
+ --         --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+ --       if AutoVecDist(G_cache[index].pos,p) < 10 then
+ --           for i=1,#G_cache[index].nearby do 
+ --               local otherPos = G_cache[G_cache[index].nearby[i]].pos
+ --               DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
+ --           end
+ --       end
+ --   
+ -- 
+ --     -- DebugCross(G_cache[index].pos)
+      --end
+
 end
 
 
