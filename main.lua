@@ -12,6 +12,7 @@
 local G_cache = {}
 local cacheSort = {}
 local checkShape = {}
+local vertecies = {}
 
 function init()
     Spawn("MOD/boxes.xml",Transform())
@@ -69,7 +70,24 @@ function scanAll(debugMode)
                         G_cache[#G_cache].min   = VecCopy(cache[i].min)
                         G_cache[#G_cache].max   = VecCopy(cache[i].max)
                         G_cache[#G_cache].pos   = cache[i].pos
-                        G_cache[#G_cache].nearby = {} 
+
+                        G_cache[#G_cache].faces = {}
+
+                        -- Up face
+                        G_cache[#G_cache].faces.up = {min = {min[1], max[2], min[3]}, max = max}
+                        -- Down face
+                        G_cache[#G_cache].faces.down = {min = min, max = {max[1], min[2], max[3]}}
+                        -- Left face
+                        G_cache[#G_cache].faces.left = {min = min, max = {min[1], max[2], max[3]}}
+                        -- Right face
+                        G_cache[#G_cache].faces.right = {min = {max[1], min[2], min[3]}, max = max}
+                        -- Forward face
+                        G_cache[#G_cache].faces.forward = {min = min, max = {max[1], max[2], min[3]}}
+                        -- Backward face
+                        G_cache[#G_cache].faces.backward = {min = {min[1], min[2], max[3]}, max = max}
+
+
+                        G_cache[#G_cache].nearby = {}
                         cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
                     end
                 end
@@ -79,9 +97,9 @@ function scanAll(debugMode)
         end
         xi = xi + octtreeSize
     end
+    calculateGrid()
 
-
-   -- determinNeighbours()
+   -- determinNeighboursOld()
 
     ClearKey("savegame.mod.birb")
     if debugMode then
@@ -90,7 +108,29 @@ function scanAll(debugMode)
     end
 end
 
-function determinNeighbours()
+function calculateGrid()
+    for index=1,#G_cache do
+        local faces = G_cache[index].faces
+        for _,p in pairs(faces) do --p as in point either min or max
+            for x=p.min[1],p.max[1],10 do 
+                if not vertecies[x] then vertecies[x] = {} end
+                for y=p.min[2],max[2],10 do 
+                    if not vertecies[x][y] then vertecies[x][y] = {} end
+                    for z=p.min[3],max[3],10 do
+                        if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
+                        vertecies[x][y][z].entries[#vertecies[x][y][z].entries+1] = index
+                    end
+                end
+            end
+        end
+    end
+end
+
+function determinNeighboursOld()
+
+end
+
+function determinNeighboursOld()
     local counter = 0
     for index = #cacheSort, 1, -1 do
         local boxesInThisDepth = cacheSort[index]
@@ -152,10 +192,18 @@ end
 function draw(dt)
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
     --scanAll()
-local cache = {}
-local depth = 1 
+--local cache = {}
+--local depth = 1 
 
-recursiveSearch(cache,globalt,depth,globalt)
+    for x,yAxis in pairs(vertecies) do 
+        for y,zAxis in pairs(yAxis) do 
+            for z,value in pairs(zAxis) do 
+                DebugCross(Vec(x,y,z))
+            end
+        end
+    end
+
+-- recursiveSearch(cache,globalt,depth,globalt)
   -- for j=1,#cacheSort do 
   --     local indexi = j
   --     for i=1,#cacheSort[indexi] do 
