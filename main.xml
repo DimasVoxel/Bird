@@ -2,12 +2,9 @@
 	<environment template="sunset"/>
 	<script file="main.lua"/>
 	<script file="sandbox.lua"/>
-	<voxbox pos="3.3 0.0 -2.1" size="261 1 91" offset="283.0 0.0 229.0"/>
-	<voxbox pos="10.8 -0.0 -4.4" rot="0.0 0.0 90.0" size="243 5 148" offset="246.0 -111.99999 206.0"/>
-	<voxbox pos="15.8 18.9 -4.4" rot="0.0 0.0 90.0" size="54 5 148" offset="435.0 -111.99999 206.0"/>
-	<voxbox pos="15.8 10.8 -4.4" rot="0.0 0.0 90.0" size="54 5 148" offset="435.0 -111.99999 206.0"/>
-	<voxbox pos="15.8 0.8 7.3" rot="0.0 -60.0 90.0" size="154 5 148" offset="335.0 -111.99999 206.0"/>
-	<voxbox pos="15.8 18.9 -4.4" rot="0.0 -90.0 90.0" size="54 5 148" offset="435.0 -111.99999 206.0"/>
+	<voxbox pos="3.3 0.0 -37.3" size="261 1 443" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="12.4 0.0 -20.49999" rot="0.0 0.0 90.0" size="243 84 309" offset="246.0 -190.99998 45.00002"/>
+	<voxbox pos="26.2 5.6 -20.49999" rot="0.0 0.0 90.0" size="187 84 309" offset="302.0 -190.99998 45.00002"/>
 	<spawnpoint pos="17.4 0.1 16.4" rot="0 180 0"/>
 </scene>
 

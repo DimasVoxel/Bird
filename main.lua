@@ -81,7 +81,7 @@ function scanAll(debugMode)
     end
 
 
-    determinNeighbours()
+   -- determinNeighbours()
 
     ClearKey("savegame.mod.birb")
     if debugMode then
@@ -152,50 +152,36 @@ end
 function draw(dt)
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
     --scanAll()
-   -- local cache = {}
-   -- local depth = 1 
-   -- local id = 1
-  ----recursiveSearch(cache,globalt,depth,globalt,id),
-    for j=1,#cacheSort do 
-        local indexi = j
-        for i=1,#cacheSort[indexi] do 
-            local index = cacheSort[indexi][i]
-            --ids[#ids+1] = cacheAll[x][y][z].id
-            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
-            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-            --AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
-            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
-            for i=1,#G_cache[index].nearby do 
-                local otherPos = G_cache[G_cache[index].nearby[i]].pos
-                DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
-            end
-            DebugCross(G_cache[index].pos)
-        end
-    end
+local cache = {}
+local depth = 1 
 
-  --    
-  --  --  
-  --end
-
- --  for i=1,#G_cache do 
- --      --ids[#ids+1] = cacheAll[x][y][z].id
- --      --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
- --      --DebugLine(cacheAll[gX][gY][gZ].min,cacheAll[gX][gY][gZ].max,0,0,0,1)
- --   --   AutoDrawAABB(G_cache[i].min,G_cache[i].max,0,0,0,1)
- --      DebugLine(G_cache[i].pos,VecAdd(G_cache[i].pos,Vec(0,G_cache[i].max[2]-G_cache[i].min[2],0)))
- --  end
+recursiveSearch(cache,globalt,depth,globalt)
+  -- for j=1,#cacheSort do 
+  --     local indexi = j
+  --     for i=1,#cacheSort[indexi] do 
+  --         local index = cacheSort[indexi][i]
+  --         --ids[#ids+1] = cacheAll[x][y][z].id
+  --         --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
+  --         --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
+  --         --AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
+  --         --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+  --         for i=1,#G_cache[index].nearby do 
+  --             local otherPos = G_cache[G_cache[index].nearby[i]].pos
+  --             DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
+  --         end
+  --         DebugCross(G_cache[index].pos)
+  --     end
+  -- end
 end
 
 
-function recursiveSearch(cache,t,depth,mainBodyT,count)
+function recursiveSearch(cache,t,depth,mainBodyT)
     SetBodyTransform(checkShape[depth].body,t)
     local cost = math.pow(2,depth)
     for i=1, #checkShape[depth].shapes do
-        
         QueryRequire("physical visible")
         local min,max = GetShapeBounds(checkShape[depth].shapes[i])
         local shapes = QueryAabbShapes(min,max)
-        local tShape = GetShapeWorldTransform(checkShape[depth].shapes[i])
         if #shapes == 0 then
            calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
         else
@@ -203,7 +189,7 @@ function recursiveSearch(cache,t,depth,mainBodyT,count)
             for j=1,#shapes do 
                 if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
                     if depth ~= #checkShape then
-                        cache = recursiveSearch(cache,tShape,depth + 1,mainBodyT,count)
+                        cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1,mainBodyT)
                     end
                     none = false 
                     break 
