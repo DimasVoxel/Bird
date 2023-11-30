@@ -13,9 +13,12 @@ local G_cache = {}
 local cacheSort = {}
 local checkShape = {}
 local vertecies = {}
-local path = {}
 
 function init()
+    drawlist = {}
+    finished = false
+    starRoutine = coroutine.create(aStar)
+
     Spawn("MOD/boxes.xml",Transform())
 
     list = {}
@@ -42,6 +45,11 @@ function init()
 
     targetBody = FindBody("targetObject",true)
     startBody = FindBody("startObject",true)
+
+    startPos = Vec()
+    endPos = Vec()
+
+    path = {}
 end
 
 function scanAll(debugMode)
@@ -63,20 +71,19 @@ function scanAll(debugMode)
         for y=minY,maxY,octtreeSize do 
             for z=minZ,maxZ,octtreeSize do
                 globalt= Transform(Vec(x,y,z))
-                
+
                 cache = {}
                 cache = recursiveSearch(cache,globalt,1,globalt)
-                
+
                 for i=1,#cache do 
                     if cache[i].cost ~= -1 then
                     G_cache[#G_cache+1] = {}
                     G_cache[#G_cache].cost = cache[i].cost
-                    local cmin = VecCopy(cache[i].min)
-                    local cmax = VecCopy(cache[i].max)
+                    local cmin = cache[i].min
+                    local cmax = cache[i].max
                     G_cache[#G_cache].min   = cmin
                     G_cache[#G_cache].max   = cmax
                     G_cache[#G_cache].pos   = cache[i].pos
-
                     G_cache[#G_cache].faces = {}
 
                     -- Up face
@@ -138,12 +145,8 @@ function calculateGrid()
     end
 end
 
-
-
-
-
 function determinNeighbours()
-    count = 1
+   -- count = 1
     for index = 1, #G_cache do
         local faces = G_cache[index].faces
         for dir, points in pairs(faces) do -- p as in point either min or max
@@ -154,7 +157,7 @@ function determinNeighbours()
                 local x, y, z = point[1], point[2], point[3]
                 local values = vertecies[x][y][z]
                 for v = 1, #values do
-                    count = count + 1
+                   -- count = count + 1
                     local vertex = values[v]
                     if not results[vertex] then
                         results[vertex] = 1
@@ -163,7 +166,11 @@ function determinNeighbours()
                         if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then
                             G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                             exit = true
+                            if not isNumberInTable(G_cache[vertex].nearby,index) then 
+                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index
+                            end
                         end
+                        
                     end
                 end
                 if exit then
@@ -172,16 +179,15 @@ function determinNeighbours()
             end
         end
     end
-    DebugPrint(count)
+  --  DebugPrint(count)
 end
 
 
-
-
-function aStar(startPoint, endPoint)
+function aStar(startPoint, endPoint) -- Still yank not really working as of right now
     local function fCost(node)
         return node.gCost + node.hCost
     end
+    DebugPrint("D:")
 
     local function isNumberInTable(tbl, number)
         for _, value in pairs(tbl) do
@@ -195,6 +201,9 @@ function aStar(startPoint, endPoint)
     local count = 1
     local startNodeIndex = closestNode(startPoint)
     local endNodeIndex = closestNode(endPoint)
+
+    DebugLine(startPoint,G_cache[startNodeIndex].pos,1,0,1,1)
+    DebugLine(endPoint,G_cache[endNodeIndex].pos,1,0,1,1)
 
     local walked = {}
     local openNodes = {}
@@ -217,35 +226,43 @@ function aStar(startPoint, endPoint)
         closedNodes[#closedNodes + 1] = curNodeIndex
         openNodes[curNodeIndex] = nil
 
-        if curNodeIndex == endNodeIndex or count == 100 then
-            return retracePath(walked, startNodeIndex, endNodeIndex)
+        if curNodeIndex == endNodeIndex then
+            path = retracePath(walked, startNodeIndex, endNodeIndex)
+            return
         end
 
         for i = 1, #G_cache[curNodeIndex].nearby do
             local neighborIndex = G_cache[curNodeIndex].nearby[i]
             if G_cache[neighborIndex].cost ~= -1 and not isNumberInTable(closedNodes, neighborIndex) then
-                local costToNext = currentNode.gCost + VecLength(VecSub(G_cache[neighborIndex].pos, G_cache[endNodeIndex].pos)) + G_cache[neighborIndex].cost
+                local costToNext = VecLength(VecSub(G_cache[neighborIndex].pos, G_cache[endNodeIndex].pos)) + G_cache[neighborIndex].cost
                 if not isNumberInTable(openNodes, neighborIndex) or costToNext < (openNodes[neighborIndex].gCost or math.huge) then
                     local neighbor = {}
                     neighbor.gCost = costToNext
-                    neighbor.hCost = VecLength(VecSub(G_cache[neighborIndex].pos, G_cache[endNodeIndex].pos)) + G_cache[neighborIndex].cost
+                    neighbor.hCost = costToNext --+ G_cache[neighborIndex].cost
                     neighbor.parent = curNodeIndex
-                    if not isNumberInTable(openNodes, neighborIndex) then
-                      --  DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
-                        openNodes[neighborIndex] = neighbor
-                        walked[neighborIndex] = neighbor
-                    end
+
+              --      drawlist[#drawlist+1] = {}
+              --      drawlist[#drawlist].pos = {}
+              --      drawlist[#drawlist].cost = fCost(neighbor)
+              --      drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+              --      drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+              --      DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
+                    openNodes[neighborIndex] = neighbor
+                    walked[neighborIndex] = neighbor
+                    coroutine.yield()
                 end
             end
         end
     end
+
+    return retracePath(walked, startNodeIndex, endNodeIndex)
 end
 
 function retracePath(openNodes, startNode, endNode)
     local wayPoints = {}
     local currentNode = endNode
 
-    while currentNode ~= startNode do
+    while currentNode ~= startNode and openNodes[currentNode] ~= nil do
         wayPoints[#wayPoints + 1] = currentNode
         currentNode = openNodes[currentNode].parent
     end
@@ -278,96 +295,78 @@ function closestNode(point)
     return index
 end
 
-function draw(dt)
+function pointAndfind()
     local p = GetPlayerPos()
     AutoDrawAABB(GetBodyBounds(GetWorldBody()))
     DebugLine(GetBodyTransform(startBody).pos,GetBodyTransform(targetBody).pos)
-  --  determinNeighbours()
-  -- count = 1
-  -- for x,yAxis in pairs(vertecies) do 
-  --     for y,zAxis in pairs(yAxis) do 
-  --         for z,v in pairs(zAxis) do
-  --             count = count + 1
-  --          --   DebugCross(Vec(x,y,z))
-  --             AutoTooltip(#v,Vec(x,y,z),false,2)
-  --             if count == 3000 then 
-  --                 break
-  --             end
-  --         end
-  --     end
-  -- end
-    --if InputPressed("k") then
-        path = aStar(GetBodyTransform(startBody).pos,GetBodyTransform(targetBody).pos)
-      --  DebugPrint("wh")
-       -- AutoInspectWatch(path," ",1," ")
-   -- end
 
-   for i=1,#path do 
-       if i == #path then 
-           break
-       end 
-       DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
-   end
+    local t = GetPlayerCameraTransform()
+    local fwd = TransformToParentVec(t,Vec(0,0,-1))
+
+    local hit,dist = QueryRaycast(t.pos,fwd,50)
+    local hitPoint = VecAdd(t.pos,VecScale(fwd,dist))
+
+    if InputPressed("u") then 
+        startPos = VecCopy(hitPoint)
+    end
+    if InputPressed("i") then 
+        endPos = VecCopy(hitPoint)
+    end
+    DebugLine(startPos,endPos)
+
+    if InputDown("return") and finished == false then
+
+        for i=1, 300 do 
+            coroutine.resume(starRoutine,startPos,endPos)
+            if coroutine.status(starRoutine) == "dead" then 
+                starRoutine = coroutine.create(aStar)
+                drawlist = {}
+                finished = true
+                break
+            end
+        end
+    end
+
+    if InputReleased("return") and finished == true then finished = false end
     
---  for j = 1, #cacheSort do 
---      local indexi = j
---      for i = 1, #cacheSort[indexi] do 
---          local index = cacheSort[indexi][i]
---          local dist = AutoVecDist(p, G_cache[index].pos)
---          
---          if dist < cloesestDist then
---              cloesestDist = dist
---              cloesestPoint = G_cache[index].pos
---          end
---      end
---  end
+    if InputPressed("k") then drawlist = {} starRoutine = coroutine.create(aStar) end
+    for i=1,#drawlist do 
+       -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
+        DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
+    end
 
-   --for j = 1, #cacheSort do 
-   --    local indexi = j
-   --    for i = 1, #cacheSort[indexi] do 
-   --        local index = cacheSort[indexi][i]
-   --        if pointInBox(p,G_cache[index].min,G_cache[index].max) then
-   --            cloesestPoint = G_cache[index].pos
-   --        end
-   --    end
-   --end
-
-   --debug()
+    for i=1,#path do 
+        if i == #path then 
+            break
+        end 
+        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
+    end
 end
 
-function debug()
-     --   local p = GetPlayerPos()
- ----recursiveSearch(cache,globalt,depth,globalt)
-    for j=1,#cacheSort do 
-        local indexi = j
-        for i=1,#cacheSort[indexi] do 
-            local index = cacheSort[indexi][i]
-             if G_cache[index].cost ~= -1 then
-            --ids[#ids+1] = cacheAll[x][y][z].id
-            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
-            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-              --AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,1)
-            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
-
-               for i=1,#G_cache[index].nearby do 
-                   local otherPos = G_cache[G_cache[index].nearby[i]].pos
-                   DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
-               end
-           else
-               for i=1,#G_cache[index].nearby do 
-                   local otherPos = G_cache[G_cache[index].nearby[i]].pos
-                   DebugLine(G_cache[index].pos,otherPos,1,0,0,0.2)
-               end
-           end
-        end
-    
-        -- DebugCross(G_cache[index].pos)
+function blocksearch() -- uses two cubes to find the best path between those two
+    --InputPressed("o") then 
+        path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
+    for i=1,#path do 
+        if i == #path then 
+            break
+        end 
+        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
     end
+end
+
+function draw(dt)
+    pointAndfind()
+    --blocksearch()
+  --  determinNeighbours()
+  -- count = 1
+
+
+  -- debug()
 end
 
 function recursiveSearch(cache,t,depth,mainBodyT)
     SetBodyTransform(checkShape[depth].body,t)
-    local cost = math.pow(2,depth)
+    local cost = math.pow(2,depth*0.8)
     for i=1, #checkShape[depth].shapes do
         QueryRequire("physical visible")
         local min,max = GetShapeBounds(checkShape[depth].shapes[i])
@@ -424,6 +423,87 @@ function isNumberInTable(table, targetNumber)
     end
     return false  -- Number is not found in the table
 end
+
+
+
+function debug()
+     --   local p = GetPlayerPos()
+ ----recursiveSearch(cache,globalt,depth,globalt)
+    for j=1,#cacheSort do 
+        local indexi = j
+        for i=1,#cacheSort[indexi] do 
+            local index = cacheSort[indexi][i]
+             if G_cache[index].cost ~= -1 then
+            --ids[#ids+1] = cacheAll[x][y][z].id
+            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
+            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
+              AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,0.1)
+            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+
+        --      for i=1,#G_cache[index].nearby do 
+        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
+        --          DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
+        --      end
+        --  else
+        --      for i=1,#G_cache[index].nearby do 
+        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
+        --          DebugLine(G_cache[index].pos,otherPos,1,0,0,0.2)
+        --      end
+          end
+        end
+    
+        -- DebugCross(G_cache[index].pos)
+    end
+
+      -- for x,yAxis in pairs(vertecies) do 
+  --     for y,zAxis in pairs(yAxis) do 
+  --         for z,v in pairs(zAxis) do
+  --             count = count + 1
+  --          --   DebugCross(Vec(x,y,z))
+  --             AutoTooltip(#v,Vec(x,y,z),false,2)
+  --             if count == 3000 then 
+  --                 break
+  --             end
+  --         end
+  --     end
+  -- end
+    --if InputPressed("k") then
+       -- 
+      --  DebugPrint("wh")
+       -- AutoInspectWatch(path," ",1," ")
+   -- end
+
+ -- 
+ -- 
+ -- 
+ -- 
+ -- 
+ -- 
+    
+--  for j = 1, #cacheSort do 
+--      local indexi = j
+--      for i = 1, #cacheSort[indexi] do 
+--          local index = cacheSort[indexi][i]
+--          local dist = AutoVecDist(p, G_cache[index].pos)
+--          
+--          if dist < cloesestDist then
+--              cloesestDist = dist
+--              cloesestPoint = G_cache[index].pos
+--          end
+--      end
+--  end
+
+   --for j = 1, #cacheSort do 
+   --    local indexi = j
+   --    for i = 1, #cacheSort[indexi] do 
+   --        local index = cacheSort[indexi][i]
+   --        if pointInBox(p,G_cache[index].min,G_cache[index].max) then
+   --            cloesestPoint = G_cache[index].pos
+   --        end
+   --    end
+   --end
+end
+
 
 
 
