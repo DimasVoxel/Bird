@@ -79,8 +79,8 @@ function scanAll(debugMode)
                     if cache[i].cost ~= -1 then
                     G_cache[#G_cache+1] = {}
                     G_cache[#G_cache].cost = cache[i].cost
-                    local cmin = cache[i].min
-                    local cmax = cache[i].max
+                    local cmin = VecCopy(cache[i].min)
+                    local cmax = VecCopy(cache[i].max)
                     G_cache[#G_cache].min   = cmin
                     G_cache[#G_cache].max   = cmax
                     G_cache[#G_cache].pos   = cache[i].pos
@@ -182,74 +182,80 @@ function determinNeighbours()
   --  DebugPrint(count)
 end
 
-
-function aStar(startPoint, endPoint) -- Still yank not really working as of right now
+function aStar(startPoint, endPoint)
     local function fCost(node)
         return node.gCost + node.hCost
     end
-    DebugPrint("D:")
 
-    local function isNumberInTable(tbl, number)
-        for _, value in pairs(tbl) do
-            if value == number then
-                return true
-            end
-        end
-        return false
-    end
+    local VecSub = VecSub 
+    local VecLength = VecLength
+    local G_cache = G_cache
+    local coroutine_yield = coroutine.yield
+    local math_huge = math.huge
 
-    local count = 1
     local startNodeIndex = closestNode(startPoint)
     local endNodeIndex = closestNode(endPoint)
 
-    DebugLine(startPoint,G_cache[startNodeIndex].pos,1,0,1,1)
-    DebugLine(endPoint,G_cache[endNodeIndex].pos,1,0,1,1)
+    DebugLine(startPoint, G_cache[startNodeIndex].pos, 1, 0, 1, 1)
+    DebugLine(endPoint, G_cache[endNodeIndex].pos, 1, 0, 1, 1)
 
     local walked = {}
     local openNodes = {}
     openNodes[startNodeIndex] = { gCost = 0, hCost = AutoVecDist(G_cache[startNodeIndex].pos, G_cache[endNodeIndex].pos) }
     local closedNodes = {}
 
+    local endNode = G_cache[endNodeIndex]
+
     while next(openNodes) ~= nil do
         local curNodeIndex, currentNode = next(openNodes)
-        count = count
         for index, costs in pairs(openNodes) do
             local fCostCurrent = fCost(currentNode)
             local fCostOther = fCost(costs)
 
-            if fCostCurrent > fCostOther or (fCostCurrent == fCostOther and costs.hCost > currentNode.hCost) then
+            if fCostCurrent > fCostOther or (fCostCurrent == fCostOther and costs.gCost > currentNode.gCost) then
                 currentNode = openNodes[index]
                 curNodeIndex = index
             end
         end
 
-        closedNodes[#closedNodes + 1] = curNodeIndex
+        closedNodes[curNodeIndex] = true
         openNodes[curNodeIndex] = nil
-
+        DebugPrint(#openNodes)
         if curNodeIndex == endNodeIndex then
             path = retracePath(walked, startNodeIndex, endNodeIndex)
             return
         end
 
-        for i = 1, #G_cache[curNodeIndex].nearby do
-            local neighborIndex = G_cache[curNodeIndex].nearby[i]
-            if G_cache[neighborIndex].cost ~= -1 and not isNumberInTable(closedNodes, neighborIndex) then
-                local costToNext = VecLength(VecSub(G_cache[neighborIndex].pos, G_cache[endNodeIndex].pos)) + G_cache[neighborIndex].cost
-                if not isNumberInTable(openNodes, neighborIndex) or costToNext < (openNodes[neighborIndex].gCost or math.huge) then
-                    local neighbor = {}
-                    neighbor.gCost = costToNext
-                    neighbor.hCost = costToNext --+ G_cache[neighborIndex].cost
-                    neighbor.parent = curNodeIndex
+        local L_cache = G_cache[curNodeIndex]
+        
 
-              --      drawlist[#drawlist+1] = {}
-              --      drawlist[#drawlist].pos = {}
-              --      drawlist[#drawlist].cost = fCost(neighbor)
-              --      drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
-              --      drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
-              --      DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
-                    openNodes[neighborIndex] = neighbor
-                    walked[neighborIndex] = neighbor
-                    coroutine.yield()
+        for i = 1, #L_cache.nearby do
+            local neighborIndex = L_cache.nearby[i]
+            local neighbor = G_cache[neighborIndex]
+
+            if neighbor.cost ~= -1 and not closedNodes[neighborIndex] then
+                local posDiff = VecSub(neighbor.pos, endNode.pos)
+                local costToNext = currentNode.gCost + VecLength(posDiff) + neighbor.cost
+
+                local openNode = openNodes[neighborIndex]
+                if not openNode or costToNext < (openNode.gCost or math_huge) then
+                    local newNeighbor = {
+                        gCost = costToNext,
+                        hCost = AutoVecDist(neighbor.pos, endNode.pos),
+                        parent = curNodeIndex
+                    }
+
+                    drawlist[#drawlist+1] = {}
+                    drawlist[#drawlist].pos = {}
+                  --  drawlist[#drawlist].cost = fCost(neighbor)
+                    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+                    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+                   -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
+
+                    coroutine_yield()
+
+                    openNodes[neighborIndex] = newNeighbor
+                    walked[neighborIndex] = newNeighbor
                 end
             end
         end
@@ -257,6 +263,7 @@ function aStar(startPoint, endPoint) -- Still yank not really working as of righ
 
     return retracePath(walked, startNodeIndex, endNodeIndex)
 end
+
 
 function retracePath(openNodes, startNode, endNode)
     local wayPoints = {}
@@ -345,18 +352,36 @@ end
 
 function blocksearch() -- uses two cubes to find the best path between those two
     --InputPressed("o") then 
-        path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
+      --  path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
+      local targetPos = GetBodyTransform(targetBody).pos
+      local startBody = GetBodyTransform(startBody).pos
+    for i=1, 1 do 
+        coroutine.resume(starRoutine,targetPos,startBody)
+        if coroutine.status(starRoutine) == "dead" then 
+            starRoutine = coroutine.create(aStar)
+            break
+        end
+    end
+
+    for i=1,#drawlist do 
+        -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
+         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
+     end
+
     for i=1,#path do 
         if i == #path then 
             break
         end 
         DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
     end
+    if coroutine.status(starRoutine) == "dead" then 
+        drawlist = {}
+    end
 end
 
 function draw(dt)
-    pointAndfind()
-    --blocksearch()
+   -- pointAndfind()
+    blocksearch()
   --  determinNeighbours()
   -- count = 1
 
