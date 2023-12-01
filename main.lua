@@ -191,7 +191,7 @@ function aStar(startPoint, endPoint)
     local VecLength = VecLength
     local G_cache = G_cache
     local coroutine_yield = coroutine.yield
-    local math_huge = math.huge
+
 
     local startNodeIndex = closestNode(startPoint)
     local endNodeIndex = closestNode(endPoint)
@@ -243,11 +243,11 @@ function aStar(startPoint, endPoint)
                         parent = curNodeIndex
                     }
 
-                    drawlist[#drawlist+1] = {}
-                    drawlist[#drawlist].pos = {}
-                  --  drawlist[#drawlist].cost = fCost(neighbor)
-                    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
-                    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+              --    drawlist[#drawlist+1] = {}
+              --    drawlist[#drawlist].pos = {}
+              --  --  drawlist[#drawlist].cost = fCost(neighbor)
+              --    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+              --    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
                    -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
 
                     coroutine_yield()
@@ -425,6 +425,7 @@ function calculateCost(min,max,cache,cost,depth)
     cache[index].min = min
     cache[index].max = max
     cache[index].pos = VecLerp(min,max,0.5)
+  --  if  IsPointInWater(cache[index].pos) then cache[index].cost = -1 end
     cache[index].depth = depth
     return cache
 end
