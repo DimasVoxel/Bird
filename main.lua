@@ -212,7 +212,7 @@ function aStar(startPoint, endPoint)
             local fCostCurrent = fCost(currentNode)
             local fCostOther = fCost(costs)
 
-            if fCostCurrent > fCostOther or (fCostCurrent == fCostOther and costs.gCost > currentNode.gCost) then
+            if fCostOther < fCostCurrent or (fCostCurrent == fCostOther and currentNode.gCost < costs.gCost ) then
                 currentNode = openNodes[index]
                 curNodeIndex = index
             end
@@ -220,7 +220,7 @@ function aStar(startPoint, endPoint)
 
         closedNodes[curNodeIndex] = true
         openNodes[curNodeIndex] = nil
-        DebugPrint(#openNodes)
+
         if curNodeIndex == endNodeIndex then
             path = retracePath(walked, startNodeIndex, endNodeIndex)
             return
@@ -234,11 +234,9 @@ function aStar(startPoint, endPoint)
             local neighbor = G_cache[neighborIndex]
 
             if neighbor.cost ~= -1 and not closedNodes[neighborIndex] then
-                local posDiff = VecSub(neighbor.pos, endNode.pos)
-                local costToNext = currentNode.gCost + VecLength(posDiff) + neighbor.cost
-
-                local openNode = openNodes[neighborIndex]
-                if not openNode or costToNext < (openNode.gCost or math_huge) then
+                local posDiff = VecNormalize(VecSub(neighbor.pos, L_cache.pos))
+                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,L_cache.pos))),0)
+                if not openNodes[neighborIndex] or costToNext < openNodes[neighborIndex].gCost then
                     local newNeighbor = {
                         gCost = costToNext,
                         hCost = AutoVecDist(neighbor.pos, endNode.pos),
@@ -323,7 +321,7 @@ function pointAndfind()
 
     if InputDown("return") and finished == false then
 
-        for i=1, 300 do 
+        for i=1, 100 do 
             coroutine.resume(starRoutine,startPos,endPos)
             if coroutine.status(starRoutine) == "dead" then 
                 starRoutine = coroutine.create(aStar)
@@ -355,7 +353,7 @@ function blocksearch() -- uses two cubes to find the best path between those two
       --  path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
       local targetPos = GetBodyTransform(targetBody).pos
       local startBody = GetBodyTransform(startBody).pos
-    for i=1, 1 do 
+    for i=1, 20 do 
         coroutine.resume(starRoutine,targetPos,startBody)
         if coroutine.status(starRoutine) == "dead" then 
             starRoutine = coroutine.create(aStar)
@@ -380,8 +378,8 @@ function blocksearch() -- uses two cubes to find the best path between those two
 end
 
 function draw(dt)
-   -- pointAndfind()
-    blocksearch()
+    pointAndfind()
+ --   blocksearch()
   --  determinNeighbours()
   -- count = 1
 
@@ -391,7 +389,7 @@ end
 
 function recursiveSearch(cache,t,depth,mainBodyT)
     SetBodyTransform(checkShape[depth].body,t)
-    local cost = math.pow(2,depth*0.8)
+    local cost = math.pow(2,depth)/2
     for i=1, #checkShape[depth].shapes do
         QueryRequire("physical visible")
         local min,max = GetShapeBounds(checkShape[depth].shapes[i])
