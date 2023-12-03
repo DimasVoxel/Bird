@@ -9,10 +9,10 @@
 ]]--
 
 -- Local is faster than global
-local G_cache = {}
 local cacheSort = {}
 local checkShape = {}
 local vertecies = {}
+local G_cache = {}
 
 function init()
     drawlist = {}
@@ -41,7 +41,15 @@ function init()
             SetTag(checkShape[i].shapes[j],"ground")
         end
     end
-    scanAll()
+
+    
+    mapName = removeForwardSlashes(GetString("game.levelpath"))
+    if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
+        scanAll(true)
+    else 
+        G_cache = unserialize(GetString("savegame.mod.birb."..mapName..".value"))
+    end
+  --scanAll()
 
     targetBody = FindBody("targetObject",true)
     startBody = FindBody("startObject",true)
@@ -49,6 +57,7 @@ function init()
     startPos = Vec()
     endPos = Vec()
 
+    drawCurve = {}
     path = {}
 end
 
@@ -112,12 +121,17 @@ function scanAll(debugMode)
     calculateGrid()
     determinNeighbours()
 
-   -- determinNeighboursOld()
+    -- determinNeighboursOld()
 
-    ClearKey("savegame.mod.birb")
+    --ClearKey("savegame.mod.birb")
     if debugMode then
+        DebugPrint("heh")
+        for i=1,#G_cache do 
+            G_cache[i].faces = nil
+        end
         local str = serialize(G_cache)
-        SetString("savegame.mod.birb",str)
+        SetBool("savegame.mod.birb."..mapName..".scanned",true)
+        SetString("savegame.mod.birb."..mapName..".value",str)
     end
 
     for i=1,#checkShape do 
@@ -147,28 +161,28 @@ end
 
 function determinNeighbours()
    -- count = 1
-    for index = 1, #G_cache do
-        local faces = G_cache[index].faces
-        for dir, points in pairs(faces) do -- p as in point either min or max
-            local exit = false
+    for index = 1, #G_cache do              -- This stores all octtree data
+        local faces = G_cache[index].faces  -- We save all faces of the octtree 
+        for dir, points in pairs(faces) do  -- Each face stores the min and max of the face 
+            local exit = false              -- Optimisation
             local results = {}
            -- local vert = calculateFaceCorners(p.min, p.max)
             for _,point in pairs(points) do 
-                local x, y, z = point[1], point[2], point[3]
-                local values = vertecies[x][y][z]
-                for v = 1, #values do
-                   -- count = count + 1
-                    local vertex = values[v]
-                    if not results[vertex] then
-                        results[vertex] = 1
+                local x, y, z = point[1], point[2], point[3] -- To determin all neighbours near a box we build a completly new table
+                local values = vertecies[x][y][z]            -- This 3D table stores all G_cahe ids at the mins and max of the faces
+                for v = 1, #values do                        -- To find a neighbour we check at vertex[min] and see which box shares it as well
+                   -- count = count + 1                      -- We check if we find an id more than once its a neighbour - Current implementaion does not support diagonal neighbour search
+                    local vertex = values[v]                 -- vertex is the G_cache id of other octtree boxes
+                    if not results[vertex] then         
+                        results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
                     else
                         results[vertex] = results[vertex] + 1
                         if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then
                             G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                             exit = true
-                            if not isNumberInTable(G_cache[vertex].nearby,index) then 
-                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index
-                            end
+                            if not isNumberInTable(G_cache[vertex].nearby,index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
+                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
+                            end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
                         end
                         
                     end
@@ -189,7 +203,7 @@ function aStar(startPoint, endPoint)
 
     local VecSub = VecSub 
     local VecLength = VecLength
-    local G_cache = G_cache
+
     local coroutine_yield = coroutine.yield
 
 
@@ -201,10 +215,16 @@ function aStar(startPoint, endPoint)
 
     local walked = {}
     local openNodes = {}
-    openNodes[startNodeIndex] = { gCost = 0, hCost = AutoVecDist(G_cache[startNodeIndex].pos, G_cache[endNodeIndex].pos) }
+
+    local startingDistance = AutoVecDist(G_cache[startNodeIndex].pos, G_cache[endNodeIndex].pos)
+    if startingDistance < 75 then startingDistance = 100 end -- This is a modifier that makes the algo search through larger octtrees. But if its too close it will never be able to pin point the goal
+    local curDistModifier = 1
+
+    openNodes[startNodeIndex] = { gCost = 0, hCost = startingDistance  }
     local closedNodes = {}
 
     local endNode = G_cache[endNodeIndex]
+    
 
     while next(openNodes) ~= nil do
         local curNodeIndex, currentNode = next(openNodes)
@@ -227,7 +247,7 @@ function aStar(startPoint, endPoint)
         end
 
         local L_cache = G_cache[curNodeIndex]
-        
+        curDistModifier = AutoVecDist(L_cache.pos, G_cache[endNodeIndex].pos)/startingDistance
 
         for i = 1, #L_cache.nearby do
             local neighborIndex = L_cache.nearby[i]
@@ -235,7 +255,7 @@ function aStar(startPoint, endPoint)
 
             if neighbor.cost ~= -1 and not closedNodes[neighborIndex] then
                 local posDiff = VecNormalize(VecSub(neighbor.pos, L_cache.pos))
-                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,L_cache.pos))),0)
+                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,L_cache.pos))),0) + neighbor.cost*curDistModifier
                 if not openNodes[neighborIndex] or costToNext < openNodes[neighborIndex].gCost then
                     local newNeighbor = {
                         gCost = costToNext,
@@ -243,11 +263,11 @@ function aStar(startPoint, endPoint)
                         parent = curNodeIndex
                     }
 
-              --    drawlist[#drawlist+1] = {}
-              --    drawlist[#drawlist].pos = {}
-              --  --  drawlist[#drawlist].cost = fCost(neighbor)
-              --    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
-              --    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+                  drawlist[#drawlist+1] = {}
+                  drawlist[#drawlist].pos = {}
+                --  drawlist[#drawlist].cost = fCost(neighbor)
+                     drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+                     drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
                    -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
 
                     coroutine_yield()
@@ -285,7 +305,7 @@ function worldPointToCache(point)
     end
 end
 
-function closestNode(point)
+function closestNode(point) -- Pile of trash
     local index = 0
     local cloesestDist = 10000
     for i=1,#G_cache do
@@ -332,7 +352,22 @@ function pointAndfind()
         end
     end
 
-    if InputReleased("return") and finished == true then finished = false end
+    if InputReleased("return") and finished == true then 
+        local knots = {}
+        knots[#knots+1] = G_cache[path[1]].pos
+        for i=1,#path do
+            if i+1 ~= #path then 
+                knots[#knots+1] = VecLerp(G_cache[path[i]].pos,G_cache[path[i+1]].pos,0.5)
+            else 
+                break
+            end
+        end
+        knots[#knots+1] = G_cache[path[#path]].pos
+        
+        finished = false 
+        drawCurve = buildCardinalSpline(knots,10) 
+       -- drawCurve = bezierAbuse(knots,10)
+    end
     
     if InputPressed("k") then drawlist = {} starRoutine = coroutine.create(aStar) end
     for i=1,#drawlist do 
@@ -340,16 +375,25 @@ function pointAndfind()
         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
     end
 
+
+    
+
+    for i=1, #drawCurve do 
+        if i ~= #drawCurve then
+            --DebugLine(curve[i],GetPlayerPos())
+            DebugLine(drawCurve[i],drawCurve[i+1],1,1,0,1)
+        end
+    end
     for i=1,#path do 
         if i == #path then 
             break
         end 
-        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
+        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos,1,1,1,0.6)
     end
 end
 
 function blocksearch() -- uses two cubes to find the best path between those two
-    --InputPressed("o") then 
+    --InpubtPressed("o") then 
       --  path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
       local targetPos = GetBodyTransform(targetBody).pos
       local startBody = GetBodyTransform(startBody).pos
@@ -383,20 +427,105 @@ function draw(dt)
   --  determinNeighbours()
   -- count = 1
 
-
+    if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb") end
   -- debug()
 end
 
+function bezierAbuse(knots,precision)
+
+
+    precision = precision or 30
+    local curve = {}
+    local collection = {}
+    local neg = 0
+
+    for i=1,#knots do 
+        curve[#curve+1] = bezier(knots,i/#knots)
+    end
+
+ --  for i=1,#knots,4 do
+ --      for j=i,i+4 do 
+ --          if j ~= #knots then 
+ --              collection[#collection+1] = knots[j]
+ --          end
+ --      end
+ --      for j=1,precision do 
+ --      curve[#curve+1] = bezier(collection,j/precision)
+ --      end
+ --      collection = {}
+ --  end
+
+    return curve
+end
+
+function buildCardinalSpline(knots,precision)
+
+
+    precision = precision or 30
+    local curve = {}
+
+    --Linear spline to cardinal spline https://youtu.be/jvPPXbo87ds?t=2656
+
+    local magicNumber = 4.1
+    for i=1, #knots do
+        if i ~= #knots-2 then 
+            -- # Hermite to bezier conversion https://youtu.be/jvPPXbo87ds?t=2528
+            local velocity = VecSub(knots[i+2],knots[i])
+            local controllPoint1 = VecScale(velocity,1/magicNumber)
+            local velocityKnos2 = VecSub(knots[i+3],knots[i+1])
+            local controllPoint1Knot2 = VecScale(velocityKnos2,1/magicNumber)
+            local controllPoint2 = VecAdd(knots[i+2],VecScale(controllPoint1Knot2,-1))
+            for j=0, precision do 
+               -- DebugLine(controllPoint1,GetPlayerPos())
+                curve[#curve+1] = bezierFast({knots[i+1],VecAdd(knots[i+1],controllPoint1),controllPoint2,knots[i+2]},j/precision)
+            end
+        else 
+            break
+        end
+    end
+
+    return curve
+end
+
+function bezierSlow(lerparray, t) -- By Dima
+    -- De Casteljau methode https://youtu.be/jvPPXbo87ds?t=235
+    local newlerparray = {}
+    if #lerparray == 1 then 
+        return lerparray[1]
+    end
+    while #lerparray > 1 do 
+        for i=1, #lerparray-1 do
+            table.insert(newlerparray,VecLerp(lerparray[i],lerparray[i+1],t))
+        end
+        if #newlerparray == 1 then
+            return newlerparray[1]
+        else 
+            lerparray = AutoTableDeepCopy(newlerparray)
+            newlerparray = {}
+        end
+    end
+end
+
+function bezierFast(knots, t) -- By Thomasims
+    local p1, p2, p3, p4 = knots[1],knots[2],knots[3],knots[4]
+	local omt = 1 - t
+	local t2, omt2 = t ^ 2, omt ^ 2
+
+	local p = VecAdd(VecAdd(VecAdd(VecScale(p1, omt ^ 3), VecScale(p2, 3 * t * omt2)), VecScale(p3, 3 * t2 * omt)),
+		VecScale(p4, t ^ 3))
+	return p
+end
+
 function recursiveSearch(cache,t,depth,mainBodyT)
-    SetBodyTransform(checkShape[depth].body,t)
-    local cost = math.pow(2,depth)/2
-    for i=1, #checkShape[depth].shapes do
-        QueryRequire("physical visible")
-        local min,max = GetShapeBounds(checkShape[depth].shapes[i])
+    SetBodyTransform(checkShape[depth].body,t)                      -- This octtree checker works by moving a giant shape 
+    local cost = math.pow(2,depth)/2                                -- We do a queryaabb and see if there are any shapes in its bounds
+    for i=1, #checkShape[depth].shapes do                           -- After that we do a is a shape touching check. This is done because 
+        QueryRequire("physical visible")                            -- Queryaabb is a simple bounds check and cylinder shapes inside would still count as occupied 
+        local min,max = GetShapeBounds(checkShape[depth].shapes[i]) 
         local shapes = QueryAabbShapes(min,max)
         if #shapes == 0 then
-           calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
-        else
+           calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)  -- If no shape was found we give it a cost of the current depth
+        else                                                                    -- Cost is used to incourage a* to path find through larger octtree blocks 
             local none = true
             for j=1,#shapes do 
                 if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
@@ -410,7 +539,7 @@ function recursiveSearch(cache,t,depth,mainBodyT)
             if none == true then 
                 calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
             elseif depth == #checkShape then
-                calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)
+                calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)   -- -1 means this is not navigatable
             end
         end
     end
@@ -448,7 +577,19 @@ function isNumberInTable(table, targetNumber)
     return false  -- Number is not found in the table
 end
 
-
+function removeForwardSlashes(inputString)
+    local afterColon = inputString:match(":(.*)")
+    if afterColon then
+        -- Remove any forward slashes in the part after the colon
+        local cleanedString = afterColon:gsub("/", "")
+        -- Ensure that everything after the colon is alphanumeric
+        local resultString = cleanedString:gsub("[^%w]", "")
+        return resultString
+    else
+        -- If no colon is found, remove only the forward slashes from the entire input string
+        return inputString:gsub("/", "")
+    end
+end
 
 function debug()
      --   local p = GetPlayerPos()
