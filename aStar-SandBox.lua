@@ -9,7 +9,7 @@
 ]]--
 
 -- Local is faster than global
-local cacheSort = {}
+--local cacheSort = {}
 local checkShape = {}
 local vertecies = {}
 local G_cache = {}
@@ -91,28 +91,20 @@ function scanAll(debugMode)
                     if cache[i].cost ~= -1 then
                         G_cache[#G_cache+1] = {}
                         G_cache[#G_cache].cost = cache[i].cost
-                        local cmin = VecCopy(cache[i].min)
-                        local cmax = VecCopy(cache[i].max)
+                        local cmin = cache[i].min
+                        local cmax = cache[i].max
                         G_cache[#G_cache].min   = cmin
                         G_cache[#G_cache].max   = cmax
                         G_cache[#G_cache].pos   = cache[i].pos
                         G_cache[#G_cache].faces = {}
-
-                        -- Up face
                         G_cache[#G_cache].faces.up = {min = {cmin[1], cmax[2], cmin[3]}, max = cmax}
-                        -- Down face
                         G_cache[#G_cache].faces.down = {min = cmin, max = {cmax[1], cmin[2], cmax[3]}}
-                        -- Left face
                         G_cache[#G_cache].faces.left = {min = cmin, max = {cmin[1], cmax[2], cmax[3]}}
-                        -- Right face
                         G_cache[#G_cache].faces.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
-                        -- Forward face
                         G_cache[#G_cache].faces.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
-                        -- Backward face
                         G_cache[#G_cache].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
-
                         G_cache[#G_cache].nearby = {}
-                        cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
+                        --cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
                     end
                 end
                 zi = zi + octtreeSize
@@ -128,7 +120,6 @@ function scanAll(debugMode)
 
     --ClearKey("savegame.mod.birb")
     if debugMode then
-        DebugPrint("heh")
         for i=1,#G_cache do 
             G_cache[i].faces = nil
         end
@@ -426,9 +417,7 @@ function blocksearch() -- uses two cubes to find the best path between those two
     end
 end
 
-function draw(dt)
-
-    findClosestCacheID(GetPlayerTransform())
+function tick(dt)
 
     pointAndfind()
  --   blocksearch()
@@ -437,33 +426,6 @@ function draw(dt)
 
     if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb") end
   -- debug()
-end
-
-function bezierAbuse(knots,precision)
-
-
-    precision = precision or 30
-    local curve = {}
-    local collection = {}
-    local neg = 0
-
-    for i=1,#knots do 
-        curve[#curve+1] = bezier(knots,i/#knots)
-    end
-
- --  for i=1,#knots,4 do
- --      for j=i,i+4 do 
- --          if j ~= #knots then 
- --              collection[#collection+1] = knots[j]
- --          end
- --      end
- --      for j=1,precision do 
- --      curve[#curve+1] = bezier(collection,j/precision)
- --      end
- --      collection = {}
- --  end
-
-    return curve
 end
 
 function buildCardinalSpline(knots,precision)
@@ -493,25 +455,6 @@ function buildCardinalSpline(knots,precision)
     end
 
     return curve
-end
-
-function bezierSlow(lerparray, t) -- By Dima
-    -- De Casteljau methode https://youtu.be/jvPPXbo87ds?t=235
-    local newlerparray = {}
-    if #lerparray == 1 then 
-        return lerparray[1]
-    end
-    while #lerparray > 1 do 
-        for i=1, #lerparray-1 do
-            table.insert(newlerparray,VecLerp(lerparray[i],lerparray[i+1],t))
-        end
-        if #newlerparray == 1 then
-            return newlerparray[1]
-        else 
-            lerparray = AutoTableDeepCopy(newlerparray)
-            newlerparray = {}
-        end
-    end
 end
 
 function bezierFast(knots, t) -- By Thomasims
@@ -597,222 +540,4 @@ function removeForwardSlashes(inputString)
         -- If no colon is found, remove only the forward slashes from the entire input string
         return inputString:gsub("/", "")
     end
-end
-
-function debug()
-     --   local p = GetPlayerPos()
- ----recursiveSearch(cache,globalt,depth,globalt)
-    for j=1,#cacheSort do 
-        local indexi = j
-        for i=1,#cacheSort[indexi] do 
-            local index = cacheSort[indexi][i]
-             if G_cache[index].cost ~= -1 then
-            --ids[#ids+1] = cacheAll[x][y][z].id
-            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
-            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-              AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,0.1)
-            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
-
-        --      for i=1,#G_cache[index].nearby do 
-        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
-        --          DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
-        --      end
-        --  else
-        --      for i=1,#G_cache[index].nearby do 
-        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
-        --          DebugLine(G_cache[index].pos,otherPos,1,0,0,0.2)
-        --      end
-          end
-        end
-    
-        -- DebugCross(G_cache[index].pos)
-    end
-
-      -- for x,yAxis in pairs(vertecies) do 
-  --     for y,zAxis in pairs(yAxis) do 
-  --         for z,v in pairs(zAxis) do
-  --             count = count + 1
-  --          --   DebugCross(Vec(x,y,z))
-  --             AutoTooltip(#v,Vec(x,y,z),false,2)
-  --             if count == 3000 then 
-  --                 break
-  --             end
-  --         end
-  --     end
-  -- end
-    --if InputPressed("k") then
-       -- 
-      --  DebugPrint("wh")
-       -- AutoInspectWatch(path," ",1," ")
-   -- end
-
- -- 
- -- 
- -- 
- -- 
- -- 
- -- 
-    
---  for j = 1, #cacheSort do 
---      local indexi = j
---      for i = 1, #cacheSort[indexi] do 
---          local index = cacheSort[indexi][i]
---          local dist = AutoVecDist(p, G_cache[index].pos)
---          
---          if dist < cloesestDist then
---              cloesestDist = dist
---              cloesestPoint = G_cache[index].pos
---          end
---      end
---  end
-
-   --for j = 1, #cacheSort do 
-   --    local indexi = j
-   --    for i = 1, #cacheSort[indexi] do 
-   --        local index = cacheSort[indexi][i]
-   --        if pointInBox(p,G_cache[index].min,G_cache[index].max) then
-   --            cloesestPoint = G_cache[index].pos
-   --        end
-   --    end
-   --end
-end
-
-
---------------------------- Function GraveYard -------------------------------
-
-function determinNeighboursOld()    -- Super slow super bad super brute force
-    local counter = 0
-    for index = #cacheSort, 1, -1 do
-        local boxesInThisDepth = cacheSort[index]
-
-        if #boxesInThisDepth == 0 then
-            -- Skip the loop if there are no boxes in this depth
-        else
-            local directions = {}
-            local currentBox = boxesInThisDepth[1]
-            local minBox = G_cache[currentBox].min
-            local maxBox = G_cache[currentBox].max
-
-            directions[1] = {0, maxBox[2] - minBox[2]}
-            directions[2] = {0, minBox[2] - maxBox[2]}
-            directions[3] = {minBox[1] - maxBox[1], 0}
-            directions[4] = {maxBox[1] - minBox[1], 0}
-            directions[5] = {0, 0, maxBox[3] - minBox[3]}
-            directions[6] = {0, 0, minBox[3] - maxBox[3]}
-
-            for allBoxesInThisDepth = 1, #boxesInThisDepth do
-                currentBox = boxesInThisDepth[allBoxesInThisDepth]
-                local posCurrentBox = G_cache[currentBox].pos
-                local neighborCount = 0  -- Variable to count neighbors
-
-                for dirI = 1, #directions do
-                    local dir = directions[dirI]
-                    local point = {posCurrentBox[1] + dir[1], posCurrentBox[2] + dir[2], posCurrentBox[3] + (dir[3] or 0)}
-
-                    for j = 1, index do
-                        for i = 1, #cacheSort[j] do
-                            local boxWeFound = cacheSort[j][i]
-                            counter = counter + 1
-                            if pointInBox(point, G_cache[boxWeFound].min, G_cache[boxWeFound].max) then
-                                G_cache[currentBox].nearby[#G_cache[currentBox].nearby + 1] = boxWeFound
-                                G_cache[boxWeFound].nearby[#G_cache[boxWeFound].nearby + 1] = currentBox
-                                neighborCount = neighborCount + 1
-                                if neighborCount == 6 then
-                                    break  -- Stop when 6 neighbors are found
-                                end
-                            end
-                        end
-
-                        if neighborCount == 6 then
-                            break  -- Stop when 6 neighbors are found
-                        end
-                    end
-
-                    if neighborCount == 6 then
-                        break  -- Stop when 6 neighbors are found
-                    end
-                end
-            end
-        end
-    end
-    DebugPrint(counter)
-end
-
-function calculateFaceCorners(min, max)
-    local corners = {}
-    -- Corner 1 (min values)
-    corners[1] = {min[1], min[2], min[3]}
-    -- Corner 2 (max x, min y, min z)
-    corners[2] = {max[1], min[2], min[3]}
-    -- Corner 3 (max values)
-    corners[3] = {max[1], max[2], max[3]}
-    -- Corner 4 (min x, max y, min z)
-    corners[4] = {min[1], max[2], min[3]}
-    return corners
-end
-
-function findClosest(sortedTable, targetNumber)
-    local low = 1
-    local high = #sortedTable
-    local closestNumber = nil
-
-    while low <= high do
-        local mid = math.floor((low + high) / 2)
-        local currentNumber = sortedTable[mid]
-
-        if closestNumber == nil or math.abs(currentNumber - targetNumber) < math.abs(closestNumber - targetNumber) then
-            closestNumber = currentNumber
-        end
-
-        if currentNumber < targetNumber then
-            low = mid + 1
-        elseif currentNumber > targetNumber then
-            high = mid - 1
-        else
-            return currentNumber  -- Exact match found
-        end
-    end
-
-    return closestNumber
-end
-
-
-
-function createSpatialSort()
-    spatialSort = {} 
-    for _, entry in pairs(G_cache) do
-        local id = entry.id
-        local pos = entry.pos
-
-        -- Extract x, y, z coordinates from the position
-        local x, y, z = pos[1], pos[2], pos[3]
-
-        -- Create sub-tables if not already present
-        spatialSort[x] = spatialSort[x] or {}
-        spatialSort[x][y] = spatialSort[x][y] or {}
-        spatialSort[x][y][z] = id
-    end
-    DebugPrint(#spatialSort)
-end
-
--- Function to find the closest ID using binary search
-function findClosestCacheID(pos,radius)
-    radius = radius or 40
-    local x, y, z = pos[1], pos[2], pos[3]
-  --  local xClosest = findClosest(spatialSort,x)
-  --  DebugPrint(#spatialSort)
-end
-
-function findNumbersInRange(sortedTable, targetNumber, range)
-    local result = {}
-
-    for _, currentNumber in ipairs(sortedTable) do
-        if math.abs(currentNumber - targetNumber) <= range then
-            table.insert(result, currentNumber)
-        elseif currentNumber > targetNumber + range then
-            break  -- Since the table is sorted, no need to check further
-        end
-    end
-
-    return result
 end
