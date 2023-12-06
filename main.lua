@@ -1,26 +1,22 @@
---This script will run on all levels when mod is active.
---Modding documentation: http://teardowngame.com/modding
---API reference: http://teardowngame.com/modding/api.html
-
 --[[
-#include ./Birds/Automatic.lua
-#include ./registry.lua
+#include /script/Automatic.lua
+#include /script/registry.lua
 
 ]]--
 
 -- Local is faster than global
-local cacheSort = {}
+--local cacheSort = {}
 local checkShape = {}
 local vertecies = {}
 local G_cache = {}
+local octtree = {} 
 --local spatialSort = {}
 
 function init()
-    drawlist = {}
-    finished = false
     starRoutine = coroutine.create(aStar)
 
     Spawn("MOD/boxes.xml",Transform())
+    Spawn("MOD/client.xml",Transform())
 
     list = {}
     list[#list+1] = FindBody("128",true)
@@ -48,158 +44,98 @@ function init()
     if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
         scanAll(true)
     else 
-        G_cache = unserialize(GetString("savegame.mod.birb."..mapName..".value"))
+        G_cache = unserialize(GetString("savegame.mod.birb."..mapName..".gCache"))
+        octtree = unserialize(GetString("savegame.mod.birb."..mapName..".octtree"))
     end
 
-    --createSpatialSort()
-  --scanAll()
-
-    targetBody = FindBody("targetObject",true)
-    startBody = FindBody("startObject",true)
-
-    startPos = Vec()
-    endPos = Vec()
-
-    drawCurve = {}
-    path = {}
-end
-
-function scanAll(debugMode)
-    if not debugMode then debugMode = false end
-    local min,max = GetBodyBounds(GetWorldBody())
-    local minX,maxX = min[1],max[1]
-    local minY,maxY = min[2],max[2]
-    local minZ,maxZ = min[3],max[3]
-    local count = 0
-
-    for i=1,#list do 
-        cacheSort[i] = {}
-    end
-    local octtreeSize = 32
-
-    local xi,yi,zi = 0,0,0
-    DebugLine(GetBodyTransform(checkShape[1].body).pos)
-    for x=minX,maxX,octtreeSize do
-        for y=minY,maxY,octtreeSize do 
-            for z=minZ,maxZ,octtreeSize do
-                globalt= Transform(Vec(x,y,z))
-
-                cache = {}
-                cache = recursiveSearch(cache,globalt,1,globalt)
-
-                for i=1,#cache do 
-                    if cache[i].cost ~= -1 then
-                        G_cache[#G_cache+1] = {}
-                        G_cache[#G_cache].cost = cache[i].cost
-                        local cmin = VecCopy(cache[i].min)
-                        local cmax = VecCopy(cache[i].max)
-                        G_cache[#G_cache].min   = cmin
-                        G_cache[#G_cache].max   = cmax
-                        G_cache[#G_cache].pos   = cache[i].pos
-                        G_cache[#G_cache].faces = {}
-
-                        -- Up face
-                        G_cache[#G_cache].faces.up = {min = {cmin[1], cmax[2], cmin[3]}, max = cmax}
-                        -- Down face
-                        G_cache[#G_cache].faces.down = {min = cmin, max = {cmax[1], cmin[2], cmax[3]}}
-                        -- Left face
-                        G_cache[#G_cache].faces.left = {min = cmin, max = {cmin[1], cmax[2], cmax[3]}}
-                        -- Right face
-                        G_cache[#G_cache].faces.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
-                        -- Forward face
-                        G_cache[#G_cache].faces.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
-                        -- Backward face
-                        G_cache[#G_cache].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
-
-                        G_cache[#G_cache].nearby = {}
-                        cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
-                    end
-                end
-                zi = zi + octtreeSize
-            end
-            yi = yi + octtreeSize
-        end
-        xi = xi + octtreeSize
-    end
-    calculateGrid()
-    determinNeighbours()
     
-    -- determinNeighboursOld()
 
-    --ClearKey("savegame.mod.birb")
-    if debugMode then
-        DebugPrint("heh")
-        for i=1,#G_cache do 
-            G_cache[i].faces = nil
-        end
-        local str = serialize(G_cache)
-        SetBool("savegame.mod.birb."..mapName..".scanned",true)
-        SetString("savegame.mod.birb."..mapName..".value",str)
-    end
+    RegisterListenerTo("requestPath","addPathtoQueue")
+    queue = {}
+    worker = {}
+    worker.status = "free"
+    worker.data = {}
 
-    for i=1,#checkShape do 
-        SetBodyTransform(checkShape[i].body,Transform(Vec(0,100000,0)))
-    end
+    allowedMaxPerPath = 10
+    vertecies = nil
+
+    -- Debug stuff 
+
+    drawlist = {}
 end
 
+function tick(dt)
+    if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
+    if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
+    queueWorker(dt)
+    debugDraw()
+end
 
+function debugDraw()
+    for i=1,#drawlist do 
+        -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
+         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
+     end
+end
 
-function calculateGrid()
-    for index=1,#G_cache do
-        local faces = G_cache[index].faces
-        for dir,p in pairs(faces) do --p as in point either min or max
-            for x=p.min[1],p.max[1],1 do 
-                if not vertecies[x] then vertecies[x] = {} end
-                for y=p.min[2],p.max[2],1 do 
-                    if not vertecies[x][y] then vertecies[x][y] = {} end
-                    for z=p.min[3],p.max[3],1 do
-                        if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
-                        if not isNumberInTable(vertecies[x][y][z],index) then
-                        vertecies[x][y][z][#vertecies[x][y][z]+1] = index
-                        end
-                    end
-                end
+------------------------------- Queue System + path api ----------------------------
+
+function queueWorker(dt)
+    local maxWorkPerTick = 50
+    if worker.status == "free" and #queue ~= 0 then 
+        drawlist = {}
+        worker.data = queue[1]
+        table.remove(queue,1)
+        worker.status = "busy"
+        worker.result = {}
+        worker.busyTimer = 0
+    end
+    if worker.status == "busy" then 
+    --    AutoInspectWatch(worker,"worker",1," ",false)
+        worker.busyTimer = worker.busyTimer + dt 
+        for i=1, maxWorkPerTick do 
+            coroutine.resume(starRoutine,worker.data.startPos,worker.data.endPos)
+            if coroutine.status(starRoutine) == "dead" then 
+                starRoutine = coroutine.create(aStar)
+                drawlist = {}
+                worker.status = "done"
+                break
             end
         end
     end
+
+    if worker.status == "done" then 
+        local data = {}
+        data.id = worker.data.id
+        data.path = {}
+        for i=1,#worker.result do 
+            data.path[#data.path+1] = {}
+            data.path[#data.path].pos = G_cache[worker.result[i]].pos
+            data.path[#data.path].min = G_cache[worker.result[i]].min
+            data.path[#data.path].max = G_cache[worker.result[i]].max
+        end
+        local dataString = serialize(data)
+        local listener = "pathRecieve"..data.id
+
+        AutoInspectWatch(worker,"data",1," ",0.01)
+        TriggerEvent(listener,dataString)
+
+        worker.status = "free"
+    end
 end
 
-function determinNeighbours()
-   -- count = 1
-    for index = 1, #G_cache do              -- This stores all octtree data
-        local faces = G_cache[index].faces  -- We save all faces of the octtree 
-        for dir, points in pairs(faces) do  -- Each face stores the min and max of the face 
-            local exit = false              -- Optimisation
-            local results = {}
-           -- local vert = calculateFaceCorners(p.min, p.max)
-            for _,point in pairs(points) do 
-                local x, y, z = point[1], point[2], point[3] -- To determin all neighbours near a box we build a completly new table
-                local values = vertecies[x][y][z]            -- This 3D table stores all G_cahe ids at the mins and max of the faces
-                for v = 1, #values do                        -- To find a neighbour we check at vertex[min] and see which box shares it as well
-                   -- count = count + 1                      -- We check if we find an id more than once its a neighbour - Current implementaion does not support diagonal neighbour search
-                    local vertex = values[v]                 -- vertex is the G_cache id of other octtree boxes
-                    if not results[vertex] then         
-                        results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
-                    else
-                        results[vertex] = results[vertex] + 1
-                        if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then
-                            G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
-                            exit = true
-                            if not isNumberInTable(G_cache[vertex].nearby,index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
-                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
-                            end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
-                        end
-                        
-                    end
-                end
-                if exit then
-                    break
-                end
-            end
-        end
-    end
-  --  DebugPrint(count)
+function addPathtoQueue(dataString)
+    local data = unserialize(dataString)
+
+    local index = #queue+1
+    queue[index] = {}
+    queue[index].status = {}
+    queue[index].startPos = data.startPos 
+    queue[index].endPos = data.endPos
+    queue[index].id = data.id
 end
+
+------------------------------- Path Finding -------------------------------
 
 function aStar(startPoint, endPoint)
     local function fCost(node)
@@ -215,8 +151,8 @@ function aStar(startPoint, endPoint)
     local startNodeIndex = closestNode(startPoint)
     local endNodeIndex = closestNode(endPoint)
 
-    DebugLine(startPoint, G_cache[startNodeIndex].pos, 1, 0, 1, 1)
-    DebugLine(endPoint, G_cache[endNodeIndex].pos, 1, 0, 1, 1)
+   -- DebugLine(startPoint, G_cache[startNodeIndex].pos, 1, 0, 1, 1)
+   -- DebugLine(endPoint, G_cache[endNodeIndex].pos, 1, 0, 1, 1)
 
     local walked = {}
     local openNodes = {}
@@ -230,6 +166,12 @@ function aStar(startPoint, endPoint)
 
     local endNode = G_cache[endNodeIndex]
     
+   -- local superCost
+   -- if InputDown("l") then superCost = 0 else superCost = 1 end
+
+    local lowestCost = {}
+    lowestCost.index = 0
+    lowestCost.cost = 1000000
 
     while next(openNodes) ~= nil do
         local curNodeIndex, currentNode = next(openNodes)
@@ -240,15 +182,24 @@ function aStar(startPoint, endPoint)
             if fCostOther < fCostCurrent or (fCostCurrent == fCostOther and currentNode.gCost < costs.gCost ) then
                 currentNode = openNodes[index]
                 curNodeIndex = index
+                if lowestCost.cost > fCostOther then 
+                    lowestCost.cost = fCostOther
+                    lowestCost.index = index
+                end
             end
         end
 
         closedNodes[curNodeIndex] = true
         openNodes[curNodeIndex] = nil
 
-        if curNodeIndex == endNodeIndex then
-            path = retracePath(walked, startNodeIndex, endNodeIndex)
-            return
+        if curNodeIndex == endNodeIndex or worker.busyTimer > allowedMaxPerPath then
+            if worker.busyTimer > allowedMaxPerPath then 
+                worker.result = retracePath(walked, startNodeIndex, lowestCost.index)
+                DebugPrint("triggered")
+            else 
+                worker.result = retracePath(walked, startNodeIndex, endNodeIndex)
+            end
+            return 
         end
 
         local cacheVal = G_cache[curNodeIndex]
@@ -260,7 +211,7 @@ function aStar(startPoint, endPoint)
 
             if neighbor.cost ~= -1 and not closedNodes[neighborIndex] then
                 local posDiff = VecNormalize(VecSub(neighbor.pos, cacheVal.pos))
-                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbor.cost*curDistModifier
+                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbor.cost*curDistModifier--*superCost
                 if not openNodes[neighborIndex] or costToNext < openNodes[neighborIndex].gCost then
                     local newNeighbor = {
                         gCost = costToNext,
@@ -268,12 +219,11 @@ function aStar(startPoint, endPoint)
                         parent = curNodeIndex
                     }
 
-                  drawlist[#drawlist+1] = {}
-                  drawlist[#drawlist].pos = {}
-                --  drawlist[#drawlist].cost = fCost(neighbor)
-                     drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
-                     drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
-                   -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
+                    drawlist[#drawlist+1] = {}
+                    drawlist[#drawlist].pos = {}
+                    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+                    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+                  -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
 
                     coroutine_yield()
 
@@ -286,7 +236,6 @@ function aStar(startPoint, endPoint)
 
     return retracePath(walked, startNodeIndex, endNodeIndex)
 end
-
 
 function retracePath(openNodes, startNode, endNode)
     local wayPoints = {}
@@ -301,227 +250,90 @@ function retracePath(openNodes, startNode, endNode)
     return wayPoints
 end
 
+------------------------------- Terrain Scanning and node graph Building -------------------------------
 
-function worldPointToCache(point)
-    for index=1,#G_cache do 
-        if pointInBox(point,G_cache[index].min,G_cache[index].max) then
-            return index
-        end
-    end
-end
+function scanAll(debugMode)
+    if not debugMode then debugMode = false end
+    local min,max = GetBodyBounds(GetWorldBody())
+    local minX,maxX = min[1],max[1]
+    local minY,maxY = min[2],max[2]
+    local minZ,maxZ = min[3],max[3]
 
-function closestNode(point) -- Pile of trash
-    local index = 0
-    local cloesestDist = 10000
-    for i=1,#G_cache do
-        if G_cache[i].cost ~= -1 then
-            local dist = AutoVecDist(point, G_cache[i].pos)
-            if dist < cloesestDist then
-                cloesestDist = dist
-                index = i
+    --for i=1,#list do 
+    --    cacheSort[i] = {}
+    --end
+    local octtreeSize = 32
+
+    local xi,yi,zi = 0,0,0
+    --DebugLine(GetBodyTransform(checkShape[1].body).pos)
+    for x=minX,maxX,octtreeSize do
+        for y=minY,maxY,octtreeSize do 
+            for z=minZ,maxZ,octtreeSize do
+                globalt= Transform(Vec(x,y,z))
+
+                cache = {}
+                cache = recursiveSearch(cache,globalt,1,globalt)
+
+                local oMin,oMax = GetBodyBounds(list[1])
+
+                local index = #octtree+1
+                octtree[index] = {}
+                --octtree[index].min = oMin
+                --octtree[index].max = oMax
+                octtree[index].pos = VecLerp(oMin,oMax,0.5)
+                octtree[index].members = {} 
+
+                for i=1,#cache do 
+                    if cache[i].cost ~= -1 then         -- This step seems to be a little slow actually. Not sure if it would have been faster to create G_cache during recursiveSearch() itself
+                        local gIndex = #G_cache+1
+                        G_cache[gIndex] = {}
+                        G_cache[gIndex].cost = cache[i].cost
+                        local cmin = cache[i].min
+                        local cmax = cache[i].max
+                        G_cache[gIndex].min   = cmin
+                        G_cache[gIndex].max   = cmax
+                        G_cache[gIndex].pos   = cache[i].pos
+                        G_cache[gIndex].faces = {}
+                        G_cache[gIndex].faces.up = {min = {cmin[1], cmax[2], cmin[3]}, max = cmax}
+                        G_cache[gIndex].faces.down = {min = cmin, max = {cmax[1], cmin[2], cmax[3]}}
+                        G_cache[gIndex].faces.left = {min = cmin, max = {cmin[1], cmax[2], cmax[3]}}
+                        G_cache[gIndex].faces.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
+                        G_cache[gIndex].faces.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
+                        G_cache[gIndex].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
+                        G_cache[gIndex].nearby = {}
+                        --cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
+
+                        octtree[index].members[#octtree[index].members+1] = gIndex
+                    end
+                end
+                zi = zi + octtreeSize
             end
+            yi = yi + octtreeSize
         end
-    end
-    return index
-end
-
-function pointAndfind()
-    local p = GetPlayerPos()
-    AutoDrawAABB(GetBodyBounds(GetWorldBody()))
-    DebugLine(GetBodyTransform(startBody).pos,GetBodyTransform(targetBody).pos)
-
-    local t = GetPlayerCameraTransform()
-    local fwd = TransformToParentVec(t,Vec(0,0,-1))
-
-    local hit,dist = QueryRaycast(t.pos,fwd,50)
-    local hitPoint = VecAdd(t.pos,VecScale(fwd,dist))
-
-    if InputPressed("u") then 
-        startPos = VecCopy(hitPoint)
-    end
-    if InputPressed("i") then 
-        endPos = VecCopy(hitPoint)
-    end
-    DebugLine(startPos,endPos)
-
-    if InputDown("return") and finished == false then
-
-        for i=1, 100 do 
-            coroutine.resume(starRoutine,startPos,endPos)
-            if coroutine.status(starRoutine) == "dead" then 
-                starRoutine = coroutine.create(aStar)
-                drawlist = {}
-                finished = true
-                break
-            end
-        end
+        xi = xi + octtreeSize
     end
 
-    if InputReleased("return") and finished == true then 
-        local knots = {}
-        knots[#knots+1] = G_cache[path[1]].pos
-        for i=1,#path do
-            if i+1 ~= #path then 
-                knots[#knots+1] = VecLerp(G_cache[path[i]].pos,G_cache[path[i+1]].pos,0.5)
-            else 
-                break
-            end
-        end
-        knots[#knots+1] = G_cache[path[#path]].pos
-        
-        finished = false 
-        drawCurve = buildCardinalSpline(knots,10) 
-       -- drawCurve = bezierAbuse(knots,10)
-    end
+    calculateGrid()         -- This part is very memory intensive. It can spike ram usage up  to 16 at its peak 
+    determinNeighbours()
     
-    if InputPressed("k") then drawlist = {} starRoutine = coroutine.create(aStar) end
-    for i=1,#drawlist do 
-       -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
-        DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
-    end
+    -- determinNeighboursOld()
 
-
-    
-
-    for i=1, #drawCurve do 
-        if i ~= #drawCurve then
-            --DebugLine(curve[i],GetPlayerPos())
-            DebugLine(drawCurve[i],drawCurve[i+1],1,1,0,1)
+    --ClearKey("savegame.mod.birb")
+    if debugMode then
+        for i=1,#G_cache do 
+            G_cache[i].faces = nil
         end
-    end
-    for i=1,#path do 
-        if i == #path then 
-            break
-        end 
-        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos,1,1,1,0.6)
-    end
-end
+        local str = serialize(G_cache)
+        SetBool("savegame.mod.birb."..mapName..".scanned",true)
+        SetString("savegame.mod.birb."..mapName..".gCache",str)
 
-function blocksearch() -- uses two cubes to find the best path between those two
-    --InpubtPressed("o") then 
-      --  path = aStar(GetBodyTransform(targetBody).pos,GetBodyTransform(startBody).pos)
-      local targetPos = GetBodyTransform(targetBody).pos
-      local startBody = GetBodyTransform(startBody).pos
-    for i=1, 20 do 
-        coroutine.resume(starRoutine,targetPos,startBody)
-        if coroutine.status(starRoutine) == "dead" then 
-            starRoutine = coroutine.create(aStar)
-            break
-        end
+        local str = serialize(octtree)
+        SetString("savegame.mod.birb."..mapName..".octtree",str)
     end
 
-    for i=1,#drawlist do 
-        -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
-         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
-     end
-
-    for i=1,#path do 
-        if i == #path then 
-            break
-        end 
-        DebugLine(G_cache[path[i]].pos,G_cache[path[i+1]].pos)
+    for i=1,#checkShape do 
+        SetBodyTransform(checkShape[i].body,Transform(Vec(0,100000,0)))
     end
-    if coroutine.status(starRoutine) == "dead" then 
-        drawlist = {}
-    end
-end
-
-function draw(dt)
-
-    findClosestCacheID(GetPlayerTransform())
-
-    pointAndfind()
- --   blocksearch()
-  --  determinNeighbours()
-  -- count = 1
-
-    if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb") end
-  -- debug()
-end
-
-function bezierAbuse(knots,precision)
-
-
-    precision = precision or 30
-    local curve = {}
-    local collection = {}
-    local neg = 0
-
-    for i=1,#knots do 
-        curve[#curve+1] = bezier(knots,i/#knots)
-    end
-
- --  for i=1,#knots,4 do
- --      for j=i,i+4 do 
- --          if j ~= #knots then 
- --              collection[#collection+1] = knots[j]
- --          end
- --      end
- --      for j=1,precision do 
- --      curve[#curve+1] = bezier(collection,j/precision)
- --      end
- --      collection = {}
- --  end
-
-    return curve
-end
-
-function buildCardinalSpline(knots,precision)
-
-
-    precision = precision or 30
-    local curve = {}
-
-    --Linear spline to cardinal spline https://youtu.be/jvPPXbo87ds?t=2656
-
-    local magicNumber = 4.1
-    for i=1, #knots do
-        if i ~= #knots-2 then 
-            -- # Hermite to bezier conversion https://youtu.be/jvPPXbo87ds?t=2528
-            local velocity = VecSub(knots[i+2],knots[i])
-            local controllPoint1 = VecScale(velocity,1/magicNumber)
-            local velocityKnos2 = VecSub(knots[i+3],knots[i+1])
-            local controllPoint1Knot2 = VecScale(velocityKnos2,1/magicNumber)
-            local controllPoint2 = VecAdd(knots[i+2],VecScale(controllPoint1Knot2,-1))
-            for j=0, precision do 
-               -- DebugLine(controllPoint1,GetPlayerPos())
-                curve[#curve+1] = bezierFast({knots[i+1],VecAdd(knots[i+1],controllPoint1),controllPoint2,knots[i+2]},j/precision)
-            end
-        else 
-            break
-        end
-    end
-
-    return curve
-end
-
-function bezierSlow(lerparray, t) -- By Dima
-    -- De Casteljau methode https://youtu.be/jvPPXbo87ds?t=235
-    local newlerparray = {}
-    if #lerparray == 1 then 
-        return lerparray[1]
-    end
-    while #lerparray > 1 do 
-        for i=1, #lerparray-1 do
-            table.insert(newlerparray,VecLerp(lerparray[i],lerparray[i+1],t))
-        end
-        if #newlerparray == 1 then
-            return newlerparray[1]
-        else 
-            lerparray = AutoTableDeepCopy(newlerparray)
-            newlerparray = {}
-        end
-    end
-end
-
-function bezierFast(knots, t) -- By Thomasims
-    local p1, p2, p3, p4 = knots[1],knots[2],knots[3],knots[4]
-	local omt = 1 - t
-	local t2, omt2 = t ^ 2, omt ^ 2
-
-	local p = VecAdd(VecAdd(VecAdd(VecScale(p1, omt ^ 3), VecScale(p2, 3 * t * omt2)), VecScale(p3, 3 * t2 * omt)),
-		VecScale(p4, t ^ 3))
-	return p
 end
 
 function recursiveSearch(cache,t,depth,mainBodyT)
@@ -567,6 +379,63 @@ function calculateCost(min,max,cache,cost,depth)
     return cache
 end
 
+function calculateGrid()
+    for index=1,#G_cache do
+        local faces = G_cache[index].faces
+        for dir,p in pairs(faces) do --p as in point either min or max
+            for x=p.min[1],p.max[1],1 do 
+                if not vertecies[x] then vertecies[x] = {} end
+                for y=p.min[2],p.max[2],1 do 
+                    if not vertecies[x][y] then vertecies[x][y] = {} end
+                    for z=p.min[3],p.max[3],1 do
+                        if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
+                      --  if not isNumberInTable(vertecies[x][y][z],index) then
+                        vertecies[x][y][z][#vertecies[x][y][z]+1] = index
+                    --    end
+                    end
+                end
+            end
+        end
+    end
+end
+
+function determinNeighbours()
+   -- count = 1
+    for index = 1, #G_cache do              -- This stores all octtree data
+        local faces = G_cache[index].faces  -- We save all faces of the octtree boxes
+        for dir, points in pairs(faces) do  -- Each face stores the min and max of the face 
+            local exit = false              -- Optimisation
+            local results = {}
+           -- local vert = calculateFaceCorners(p.min, p.max)
+            for _,point in pairs(points) do 
+                local x, y, z = point[1], point[2], point[3] -- To determin all neighbours near a box we build a completly new table
+                local values = vertecies[x][y][z]            -- This 3D table stores all G_cache ids at the mins and max of the faces
+                for v = 1, #values do                        -- To find a neighbour we check at vertex[min] and see which box shares it as well
+                   -- count = count + 1                      -- We check if we find an id more than once its a neighbour - Current implementaion does not support diagonal neighbour search
+                    local vertex = values[v]                 -- vertex is the G_cache id of other octtree boxes
+                    if not results[vertex] then         
+                        results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
+                    else
+                        results[vertex] = results[vertex] + 1
+                        if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then
+                            G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
+                            exit = true
+                            if not isNumberInTable(G_cache[vertex].nearby,index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
+                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
+                            end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
+                        end
+                    end
+                end
+                if exit then
+                    break
+                end
+            end
+        end
+    end
+  --  DebugPrint(count)
+end
+
+---------------------------------- Helper Functions -----------------------------------------
 function pointInBox(point, minPoint, maxPoint)
     for i = 1, 3 do
         if point[i] < minPoint[i] or point[i] > maxPoint[i] then
@@ -599,220 +468,37 @@ function removeForwardSlashes(inputString)
     end
 end
 
-function debug()
-     --   local p = GetPlayerPos()
- ----recursiveSearch(cache,globalt,depth,globalt)
-    for j=1,#cacheSort do 
-        local indexi = j
-        for i=1,#cacheSort[indexi] do 
-            local index = cacheSort[indexi][i]
-             if G_cache[index].cost ~= -1 then
-            --ids[#ids+1] = cacheAll[x][y][z].id
-            --AutoTooltip(cacheAll[x][y][z].cost,cacheAll[x][y][z].pos,false,2,1)
-            --DebugLine(G_cache[index].min,G_cache[index].max,0,0,0,1)
-              AutoDrawAABB(G_cache[index].min,G_cache[index].max,0,0,0,0.1)
-            --DebugLine(G_cache[cacheSort[indexi][i]].pos,VecAdd(G_cache[cacheSort[indexi][i]].pos,Vec(0,G_cache[cacheSort[indexi][i]].max[2]-G_cache[cacheSort[indexi][i]].min[2],0)))
+function closestNode(point) -- Pile of trash
 
-        --      for i=1,#G_cache[index].nearby do 
-        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
-        --          DebugLine(G_cache[index].pos,otherPos,1,1,1,1)
-        --      end
-        --  else
-        --      for i=1,#G_cache[index].nearby do 
-        --          local otherPos = G_cache[G_cache[index].nearby[i]].pos
-        --          DebugLine(G_cache[index].pos,otherPos,1,0,0,0.2)
-        --      end
-          end
-        end
-    
-        -- DebugCross(G_cache[index].pos)
-    end
-
-      -- for x,yAxis in pairs(vertecies) do 
-  --     for y,zAxis in pairs(yAxis) do 
-  --         for z,v in pairs(zAxis) do
-  --             count = count + 1
-  --          --   DebugCross(Vec(x,y,z))
-  --             AutoTooltip(#v,Vec(x,y,z),false,2)
-  --             if count == 3000 then 
-  --                 break
-  --             end
-  --         end
-  --     end
-  -- end
-    --if InputPressed("k") then
-       -- 
-      --  DebugPrint("wh")
-       -- AutoInspectWatch(path," ",1," ")
-   -- end
-
- -- 
- -- 
- -- 
- -- 
- -- 
- -- 
-    
---  for j = 1, #cacheSort do 
---      local indexi = j
---      for i = 1, #cacheSort[indexi] do 
---          local index = cacheSort[indexi][i]
---          local dist = AutoVecDist(p, G_cache[index].pos)
---          
---          if dist < cloesestDist then
---              cloesestDist = dist
---              cloesestPoint = G_cache[index].pos
---          end
---      end
---  end
-
-   --for j = 1, #cacheSort do 
-   --    local indexi = j
-   --    for i = 1, #cacheSort[indexi] do 
-   --        local index = cacheSort[indexi][i]
-   --        if pointInBox(p,G_cache[index].min,G_cache[index].max) then
-   --            cloesestPoint = G_cache[index].pos
-   --        end
-   --    end
-   --end
-end
+    local gP = closestGroup(point) -- gP = Group Index 
+    local members = octtree[gP].members     -- During the creation process of the node graph we remember in which octtree each node was build/used to scan
+                                            -- We put the nodes in a group together. Before we do a scan which node is the actuall closest we first check
+    local index = 0                         -- Which Group is closest and only then perform the distance check on the nodes itself
+    local cloesestDist = 10000              -- This lowers lag from 16 ms (depending on the map) to barely noticable
 
 
---------------------------- Function GraveYard -------------------------------
-
-function determinNeighboursOld()    -- Super slow super bad super brute force
-    local counter = 0
-    for index = #cacheSort, 1, -1 do
-        local boxesInThisDepth = cacheSort[index]
-
-        if #boxesInThisDepth == 0 then
-            -- Skip the loop if there are no boxes in this depth
-        else
-            local directions = {}
-            local currentBox = boxesInThisDepth[1]
-            local minBox = G_cache[currentBox].min
-            local maxBox = G_cache[currentBox].max
-
-            directions[1] = {0, maxBox[2] - minBox[2]}
-            directions[2] = {0, minBox[2] - maxBox[2]}
-            directions[3] = {minBox[1] - maxBox[1], 0}
-            directions[4] = {maxBox[1] - minBox[1], 0}
-            directions[5] = {0, 0, maxBox[3] - minBox[3]}
-            directions[6] = {0, 0, minBox[3] - maxBox[3]}
-
-            for allBoxesInThisDepth = 1, #boxesInThisDepth do
-                currentBox = boxesInThisDepth[allBoxesInThisDepth]
-                local posCurrentBox = G_cache[currentBox].pos
-                local neighborCount = 0  -- Variable to count neighbors
-
-                for dirI = 1, #directions do
-                    local dir = directions[dirI]
-                    local point = {posCurrentBox[1] + dir[1], posCurrentBox[2] + dir[2], posCurrentBox[3] + (dir[3] or 0)}
-
-                    for j = 1, index do
-                        for i = 1, #cacheSort[j] do
-                            local boxWeFound = cacheSort[j][i]
-                            counter = counter + 1
-                            if pointInBox(point, G_cache[boxWeFound].min, G_cache[boxWeFound].max) then
-                                G_cache[currentBox].nearby[#G_cache[currentBox].nearby + 1] = boxWeFound
-                                G_cache[boxWeFound].nearby[#G_cache[boxWeFound].nearby + 1] = currentBox
-                                neighborCount = neighborCount + 1
-                                if neighborCount == 6 then
-                                    break  -- Stop when 6 neighbors are found
-                                end
-                            end
-                        end
-
-                        if neighborCount == 6 then
-                            break  -- Stop when 6 neighbors are found
-                        end
-                    end
-
-                    if neighborCount == 6 then
-                        break  -- Stop when 6 neighbors are found
-                    end
-                end
+    for i=1,#members do
+        local cacheIndex = members[i]
+        if G_cache[cacheIndex].cost ~= -1 then
+            local dist = AutoVecDist(point, G_cache[cacheIndex].pos)
+            if dist < cloesestDist then
+                cloesestDist = dist
+                index = cacheIndex
             end
         end
     end
-    DebugPrint(counter)
+    return index
 end
 
-function calculateFaceCorners(min, max)
-    local corners = {}
-    -- Corner 1 (min values)
-    corners[1] = {min[1], min[2], min[3]}
-    -- Corner 2 (max x, min y, min z)
-    corners[2] = {max[1], min[2], min[3]}
-    -- Corner 3 (max values)
-    corners[3] = {max[1], max[2], max[3]}
-    -- Corner 4 (min x, max y, min z)
-    corners[4] = {min[1], max[2], min[3]}
-    return corners
-end
-
-function findClosest(sortedTable, targetNumber)
-    local low = 1
-    local high = #sortedTable
-    local closestNumber = nil
-
-    while low <= high do
-        local mid = math.floor((low + high) / 2)
-        local currentNumber = sortedTable[mid]
-
-        if closestNumber == nil or math.abs(currentNumber - targetNumber) < math.abs(closestNumber - targetNumber) then
-            closestNumber = currentNumber
-        end
-
-        if currentNumber < targetNumber then
-            low = mid + 1
-        elseif currentNumber > targetNumber then
-            high = mid - 1
-        else
-            return currentNumber  -- Exact match found
+function closestGroup(point) -- Pile of trash
+    local index = 0
+    local cloesestDist = 10000
+    for i=1,#octtree do
+        local dist = AutoVecDist(point, octtree[i].pos)
+        if dist < cloesestDist then
+            cloesestDist = dist
+            index = i
         end
     end
-
-    return closestNumber
-end
-
-
-
-function createSpatialSort()
-    spatialSort = {} 
-    for _, entry in pairs(G_cache) do
-        local id = entry.id
-        local pos = entry.pos
-
-        -- Extract x, y, z coordinates from the position
-        local x, y, z = pos[1], pos[2], pos[3]
-
-        -- Create sub-tables if not already present
-        spatialSort[x] = spatialSort[x] or {}
-        spatialSort[x][y] = spatialSort[x][y] or {}
-        spatialSort[x][y][z] = id
-    end
-    DebugPrint(#spatialSort)
-end
-
--- Function to find the closest ID using binary search
-function findClosestCacheID(pos,radius)
-    radius = radius or 40
-    local x, y, z = pos[1], pos[2], pos[3]
-  --  local xClosest = findClosest(spatialSort,x)
-  --  DebugPrint(#spatialSort)
-end
-
-function findNumbersInRange(sortedTable, targetNumber, range)
-    local result = {}
-
-    for _, currentNumber in ipairs(sortedTable) do
-        if math.abs(currentNumber - targetNumber) <= range then
-            table.insert(result, currentNumber)
-        elseif currentNumber > targetNumber + range then
-            break  -- Since the table is sorted, no need to check further
-        end
-    end
-
-    return result
+    return index
 end

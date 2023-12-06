@@ -1,6 +1,7 @@
-<scene version="1.5.1" shadowVolume="200 50 200">
+<scene version="1.5.2" shadowVolume="200 50 200">
 	<environment template="sunset"/>
 	<script file="main.lua"/>
+	<instance pos="0.0 -0.2 0.0" rot="0.0 0.0 0.0" file="MOD/client.xml"/>
 	<script file="sandbox.lua"/>
 	<voxbox pos="-25.0 0.0 -26.7" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
 	<voxbox pos="-25.0 37.9 -26.7" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
