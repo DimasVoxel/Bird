@@ -1,0 +1,17 @@
+<prefab version="1.5.3">
+	<group name="instance=MOD/Birds/ShapeAnimPigon.xml" pos="0.0 0.0 -1.3" rot="0.0 0.0 0.0">
+		<script pos="-0.1 0.4 0.0" file="MOD/Birds/shapeAnimBirb.lua">
+			<body tags="bird" pos="0.17 0.3 -0.05" dynamic="true">
+				<vox pos="-0.07 -0.21 0.05" file="MOD/Birds/pigon.vox" object="body">
+					<vox tags="wing left yOffset=-1 zOffset=-3 xOffset=1" pos="-0.2 0.06 -0.2" rot="17.5 -5.0 0.0" file="MOD/Birds/pigon.vox" object="wing2"/>
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.19 0.09 0.2" rot="-17.5 5.0 0.0" file="MOD/Birds/pigon.vox" object="wing2"/>
+					<vox pos="-0.2 -0.1 -0.06" file="MOD/Birds/pigon.vox" object="body_l"/>
+					<vox pos="-0.0 -0.1 0.06" file="MOD/Birds/pigon.vox" object="body_r"/>
+					<vox pos="-0.62 0.1 0.01" rot="0.0 0.0 -20.0" file="MOD/Birds/pigon.vox" object="tail"/>
+					<location tags="wingAxis" pos="0.05 0.4 -0.05"/>
+				</vox>
+			</body>
+		</script>
+	</group>
+</prefab>
+
