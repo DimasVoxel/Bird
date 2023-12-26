@@ -1,7 +1,7 @@
 --[[
 #include /script/Automatic.lua
 #include /script/registry.lua
-
+#include /script/lualzw.lua
 ]]--
 
 -- Local is faster than global
@@ -14,9 +14,10 @@ local octGroup = {}
 --local spatialSort = {}
 
 function init()
+
+    compressRegistry = false
     starRoutine = coroutine.create(aStar)
 
-    Spawn("MOD/boxes.xml",Transform())
     Spawn("MOD/client.xml",Transform())
 
     list = {}
@@ -40,29 +41,16 @@ function init()
         end
     end
 
-    
     mapName = removeForwardSlashes(GetString("game.levelpath"))
     if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
+        Spawn("MOD/boxes.xml",Transform())
         scanAll(true)
-    else 
-        print("Retrieving Cache Chunk data: ")
-        local chunks = {}
-        local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
-        for i=1,#keys do 
-            print("G_cache Chunk: "..i.." out of "..#keys)
-            chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".gCache."..keys[i]))
+    else
+        if compressRegistry then
+            retrieveCompressedData()
+        else
+            retrieveData() 
         end
-
-        G_cache = combineTableChunks(chunks)
-
-        local chunks = {}
-        local keys = ListKeys("savegame.mod.birb."..mapName..".octGroup")
-        for i=1,#keys do 
-            print("octGroup Chunk: "..i.." out of "..#keys)
-            chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".octGroup."..keys[i]))
-        end
-
-        octGroup = combineTableChunks(chunks)
     end
 
     
@@ -74,7 +62,7 @@ function init()
     worker.status = "free"
     worker.data = {}
 
-    allowedMaxPerPath = 10
+    allowedMaxTimePerPath = 8
     vertecies = nil
 
     -- Debug stuff 
@@ -82,11 +70,60 @@ function init()
     drawlist = {}
 end
 
+function retrieveData() 
+    print("Retrieving Cache Chunk data: ")
+    local chunks = {}
+    local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
+    for i=1,#keys do 
+        print("G_cache Chunk: "..i.." out of "..#keys)
+        chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".gCache."..keys[i]))
+    end
+
+    G_cache = combineTableChunks(chunks)
+
+    local chunks = {}
+    local keys = ListKeys("savegame.mod.birb."..mapName..".octGroup")
+    for i=1,#keys do 
+        print("octGroup Chunk: "..i.." out of "..#keys)
+        chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".octGroup."..keys[i]))
+    end
+
+    octGroup = combineTableChunks(chunks)
+end
+
+function retrieveCompressedData()
+    print("Retrieving Cache Chunk data: ")
+    local chunks = {}
+    local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
+    for i=1,#keys do 
+        print("G_cache Chunk: "..i.." out of "..#keys)
+
+        local compressedBrokenString = GetString("savegame.mod.birb."..mapName..".gCache."..keys[i])
+        local compressedString = loadstring('return ' ..compressedBrokenString)()
+        chunks[#chunks+1] = unserialize(decompress(compressedString))
+    end
+
+    G_cache = combineTableChunks(chunks)
+
+    local chunks = {}
+    local keys = ListKeys("savegame.mod.birb."..mapName..".octGroup")
+    for i=1,#keys do 
+        print("octGroup Chunk: "..i.." out of "..#keys)
+        local compressedBrokenString = GetString("savegame.mod.birb."..mapName..".octGroup."..keys[i])
+        local compressedString = loadstring('return ' ..compressedBrokenString)()
+        chunks[#chunks+1] = unserialize(decompress(compressedString))
+    end
+
+    octGroup = combineTableChunks(chunks)
+end
+
+
+
 function tick(dt)
     if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
     if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
     queueWorker(dt)
-   -- debugDraw()
+    debugDraw()
 end
 
 function debugDraw()
@@ -98,9 +135,9 @@ end
 
 ------------------------------- Terrain Scanning and node graph Building -------------------------------
 
-function scanAll(debugMode)
+function scanAll(cacheToRegistry)
     print("Start scanning process...")
-    if not debugMode then debugMode = false end
+    if not cacheToRegistry then cacheToRegistry = false end
     local min,max = GetBodyBounds(GetWorldBody())
     local minX,maxX = min[1],max[1]
     local minY,maxY = min[2],max[2]
@@ -135,6 +172,7 @@ function scanAll(debugMode)
                         local gIndex = #G_cache+1
                         G_cache[gIndex] = {}
                         G_cache[gIndex].cost = cache[i].cost
+
                         local cmin = cache[i].min
                         local cmax = cache[i].max
                         G_cache[gIndex].min   = cmin
@@ -156,6 +194,7 @@ function scanAll(debugMode)
                 currentIteration = currentIteration + 1
                 local progress = (currentIteration / totalIterations) * 100
                 print("Progress: " .. math.ceil(progress) .. "%")
+                SetString("level.loadingMessage",math.ceil(progress) .. "%")
             end
         end
     end
@@ -167,7 +206,48 @@ function scanAll(debugMode)
     -- determinNeighboursOld()
 
     --ClearKey("savegame.mod.birb")
-    if debugMode then
+    if cacheToRegistry then
+        if compressRegistry then
+            writeCarcheCompressed()
+        else
+            writeCache()
+        end
+    end
+
+    for i=1,#checkShape do 
+        SetBodyTransform(checkShape[i].body,Transform(Vec(0,100000,0)))
+    end
+end
+
+
+function writeCarcheCompressed()
+    print("Caching results\n")
+
+    local tableChunks = splitTable(G_cache,100000)
+    for i=1,#tableChunks do 
+        print("Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%")
+
+        local serializeTableString = serialize(tableChunks[i])
+        local compressedString = string.format('%q',compress(serializeTableString))
+
+        SetString("savegame.mod.birb."..mapName..".gCache."..i,compressedString) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
+    end
+    
+    local tableChunks = splitTable(octGroup,30)
+    for i=1,#tableChunks do 
+
+        print("Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%")
+
+        local serializeTableString = serialize(tableChunks[i])
+        local compressedString = string.format('%q',compress(serializeTableString))
+
+        SetString("savegame.mod.birb."..mapName..".octGroup."..i,compressedString) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
+    end
+
+    SetBool("savegame.mod.birb."..mapName..".scanned",true)
+end
+
+function writeCache()
         print("Caching results\n")
 
         local tableChunks = splitTable(G_cache,20000)
@@ -181,11 +261,6 @@ function scanAll(debugMode)
         end
 
         SetBool("savegame.mod.birb."..mapName..".scanned",true)
-    end
-
-    for i=1,#checkShape do 
-        SetBodyTransform(checkShape[i].body,Transform(Vec(0,100000,0)))
-    end
 end
 
 function recursiveSearch(cache,t,depth,mainBodyT)
@@ -199,17 +274,26 @@ function recursiveSearch(cache,t,depth,mainBodyT)
            calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)  -- If no shape was found we give it a cost of the current depth
         else                                                                    -- Cost is used to incourage a* to path find through larger octtree blocks 
             local none = true
-            for j=1,#shapes do 
-                if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
-                    if depth ~= #checkShape then
-                        cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1,mainBodyT)
-                    end
-                    none = false 
-                    break 
-                end 
+            if IsPointInWater(min) then 
+                if depth ~= #checkShape then
+                    cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1,mainBodyT)
+                end
+                none = false 
+            else
+                for j=1,#shapes do 
+                    if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
+                        if depth ~= #checkShape then
+                            cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1,mainBodyT)
+                        end
+                        none = false 
+                        break 
+                    end 
+                end
             end
             if none == true then 
                 calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
+           -- elseif water then 
+           --     calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-2,depth)
             elseif depth == #checkShape then
                 calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)   -- -1 means this is not navigatable
             end
@@ -226,7 +310,6 @@ function calculateCost(min,max,cache,cost,depth)
     cache[index].min = min
     cache[index].max = max
     cache[index].pos = VecLerp(min,max,0.5)
-  --  if  IsPointInWater(cache[index].pos) then cache[index].cost = -1 end
     cache[index].depth = depth
     return cache
 end
@@ -272,10 +355,10 @@ function determinNeighbours()
                         results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
                     else
                         results[vertex] = results[vertex] + 1
-                        if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then
+                        if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then -- A value of == 1 can access all 24 diagonals, == 2 means a node graph that has access to diagonals 12 dirs, == 4 can only move up down fwd back left right
                             G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                             exit = true
-                            if not isNumberInTable(G_cache[vertex].nearby,index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
+                            if not isNumberInTable(G_cache[vertex].nearby, index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
                                 G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
                             end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
                         end
@@ -306,7 +389,11 @@ function queueWorker(dt)
     end
     if worker.status == "busy" then 
     --    AutoInspectWatch(worker,"worker",1," ",false)
-        worker.busyTimer = worker.busyTimer + dt 
+        if #queue == 0 then 
+            worker.busyTimer = worker.busyTimer + dt/2
+        else 
+            worker.busyTimer = worker.busyTimer + dt 
+        end
         for i=1, maxWorkPerTick do 
             coroutine.resume(starRoutine,worker.data.startPos,worker.data.endPos)
             if coroutine.status(starRoutine) == "dead" then 
@@ -327,11 +414,21 @@ function queueWorker(dt)
             data.path[#data.path].pos = G_cache[worker.result[i]].pos
             data.path[#data.path].min = G_cache[worker.result[i]].min
             data.path[#data.path].max = G_cache[worker.result[i]].max
+            data.path[#data.path].startPos = worker.data.startPos
+            data.path[#data.path].endPos = worker.data.endPos
         end
         local dataString = serialize(data)
         local listener = "pathRecieve"..data.id
-        TriggerEvent(listener,dataString)
 
+        if #data.path == 0 or data.path == nil then
+            data.status = "error"
+            TriggerEvent(listener,dataString)
+        else
+            data.status = "success"
+         --   print(dataString)
+         --   print(data.id.."\n\n")
+            TriggerEvent(listener,dataString)
+        end
         worker.status = "free"
     end
 end
@@ -351,7 +448,7 @@ end
 
 function aStar(startPoint, endPoint)
     local function fCost(node)
-        return node.gCost + node.hCost
+        return node.gCost + node.hCost + node.upCost
     end
 
     local VecSub = VecSub 
@@ -373,7 +470,7 @@ function aStar(startPoint, endPoint)
     if startingDistance < 75 then startingDistance = 100 end -- This is a modifier that makes the algo search through larger octtrees. But if its too close it will never be able to pin point the goal
     local curDistModifier = 1
 
-    openNodes[startNodeIndex] = { gCost = 0, hCost = startingDistance  }
+    openNodes[startNodeIndex] = { stepCounter = 0,upCost = -1, gCost = 0, hCost = startingDistance  }
     local closedNodes = {}
 
     local endNode = G_cache[endNodeIndex]
@@ -404,8 +501,8 @@ function aStar(startPoint, endPoint)
         closedNodes[curNodeIndex] = true
         openNodes[curNodeIndex] = nil
 
-        if curNodeIndex == endNodeIndex or worker.busyTimer > allowedMaxPerPath then
-            if worker.busyTimer > allowedMaxPerPath then 
+        if curNodeIndex == endNodeIndex or worker.busyTimer > allowedMaxTimePerPath then
+            if worker.busyTimer > allowedMaxTimePerPath then 
                 worker.result = retracePath(walked, startNodeIndex, lowestCost.index)
                 print("Path aborted too long")
             else 
@@ -418,35 +515,51 @@ function aStar(startPoint, endPoint)
         curDistModifier = AutoVecDist(cacheVal.pos, G_cache[endNodeIndex].pos)/startingDistance
 
         for i = 1, #cacheVal.nearby do
-            local neighborIndex = cacheVal.nearby[i]
-            local neighbor = G_cache[neighborIndex]
+            local neighbourIndex = cacheVal.nearby[i]
+            local neighbour = G_cache[neighbourIndex]
 
-            if neighbor.cost ~= -1 and not closedNodes[neighborIndex] then
-                local posDiff = VecNormalize(VecSub(neighbor.pos, cacheVal.pos))
-                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbor.cost*curDistModifier--*superCost
-                if not openNodes[neighborIndex] or costToNext < openNodes[neighborIndex].gCost then
-                    local newNeighbor = {
+            if neighbour.cost ~= -1 and not closedNodes[neighbourIndex] then
+                local dir = VecSub(neighbour.pos, cacheVal.pos)
+                local posDiff = VecNormalize(dir)
+                local dot = math.abs(VecDot(posDiff,Vec(0,1,0)))
+                if not openNodes[neighbourIndex] then elevationChange = -2 else elevationChange = openNodes[neighbourIndex].upCost end
+                --if not openNodes[neighbourIndex] then counter = 1 else counter = openNodes[neighbourIndex].stepCounter+0.05 end
+
+                if dot < 0.4 then
+                    elevationChange = elevationChange + 0.17
+                else 
+                    elevationChange = math.max(elevationChange-0.1,-1)
+                end
+                --DebugPrint(elevationChange)
+
+                local len = VecLength(dir)/3
+                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbour.cost*curDistModifier + len*curDistModifier + dot*(10*math.max(curDistModifier,0.3))-(elevationChange*2)*curDistModifier --+ counter --*superCost
+                --local costToNext = currentNode.gCost +  math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + (neighbour.cost + len + dot * 10 * math.max(curDistModifier, 0.3) - elevationChange * 4) * curDistModifier
+
+                if not openNodes[neighbourIndex] or costToNext < openNodes[neighbourIndex].gCost then
+                    local newneighbour = {
                         gCost = costToNext,
-                        hCost = AutoVecDist(neighbor.pos, endNode.pos),
-                        parent = curNodeIndex
+                        hCost = AutoVecDist(neighbour.pos, endNode.pos),
+                        parent = curNodeIndex,
+                        upCost = elevationChange,
+                        --stepCounter = counter
                     }
 
                     drawlist[#drawlist+1] = {}
                     drawlist[#drawlist].pos = {}
-                    drawlist[#drawlist].pos[1] = G_cache[neighborIndex].pos
+                    drawlist[#drawlist].pos[1] = G_cache[neighbourIndex].pos
                     drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
-                  -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighborIndex].pos)
+                  -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighbourIndex].pos)
 
                     coroutine_yield()
 
-                    openNodes[neighborIndex] = newNeighbor
-                    walked[neighborIndex] = newNeighbor
+                    openNodes[neighbourIndex] = newneighbour
+                    walked[neighbourIndex] = newneighbour
                 end
             end
         end
     end
-
-    return retracePath(walked, startNodeIndex, endNodeIndex)
+    worker.result = retracePath(walked, startNodeIndex, lowestCost.index)
 end
 
 function retracePath(openNodes, startNode, endNode)
