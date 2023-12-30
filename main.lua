@@ -563,6 +563,15 @@ function aStar(startPoint, endPoint)
 end
 
 function retracePath(openNodes, startNode, endNode)
+    local function reverseTable(t)
+        local reversedTable = {}
+        local length = #t
+        for i, v in ipairs(t) do
+            reversedTable[length - i + 1] = v
+        end
+        return reversedTable
+    end
+
     local wayPoints = {}
     local currentNode = endNode
 
@@ -572,7 +581,10 @@ function retracePath(openNodes, startNode, endNode)
     end
 
     wayPoints[#wayPoints + 1] = startNode
-    return wayPoints
+
+
+
+    return reverseTable(wayPoints)
 end
 
 

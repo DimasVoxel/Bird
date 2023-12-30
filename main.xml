@@ -16,18 +16,18 @@
 	</body>
 	<group name="instance=MOD/Birds/pigon.xml" pos="0.0 0.0 1.5" rot="0.0 -90.0 0.0">
 		<script pos="-0.1 0.4 0.0" file="MOD/Birds/bird.lua">
-			<body tags="bird" pos="0.15 0.3 -0.05" dynamic="true">
-				<vox pos="-0.05 -0.2 0.15" file="MOD/Birds/pigon.vox" object="body"/>
-				<body tags="head" pos="0.0 0.1 -0.1" dynamic="true">
+			<body tags="bird" pos="0.15 0.0 0.05" dynamic="true">
+				<vox pos="-0.05 0.1 0.05" file="MOD/Birds/pigon.vox" object="body"/>
+				<body tags="head" pos="0.0 0.4 -0.2" dynamic="true">
 					<vox pos="-0.05 -0.3 -0.15" file="MOD/Birds/pigon.vox" object="head"/>
 				</body>
-				<vox pos="0.05 0.0 0.65" rot="0.0 90.0 -30.0" file="MOD/Birds/pigon.vox" object="tail"/>
-				<vox pos="0.02313 -0.3 0.06" rot="0.0 0.0 0.0" file="MOD/Birds/pigon.vox" object="body_r"/>
-				<vox pos="-0.00704 -0.3 0.24" rot="0.0 0.0 0.0" file="MOD/Birds/pigon.vox" object="body_l"/>
-				<body tags="right wing" pos="0.1 0.05 0.0" rot="0.0 0.0 20.0" dynamic="true">
+				<vox pos="0.05 0.3 0.55" rot="0.0 90.0 -30.0" file="MOD/Birds/pigon.vox" object="tail"/>
+				<vox pos="0.02313 -0.0 -0.04" rot="0.0 0.0 0.0" file="MOD/Birds/pigon.vox" object="body_r"/>
+				<vox pos="-0.00704 -0.0 0.14" rot="0.0 0.0 0.0" file="MOD/Birds/pigon.vox" object="body_l"/>
+				<body tags="right wing" pos="0.1 0.35 -0.1" rot="0.0 0.0 20.0" dynamic="true">
 					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.01988 -0.17551 0.24" rot="0" file="MOD/Birds/pigon.vox" object="wing2"/>
 				</body>
-				<body tags="wing left" pos="-0.1 0.05 0.0" rot="0.0 0.0 -20.0" dynamic="true">
+				<body tags="wing left" pos="-0.1 0.35 -0.1" rot="0.0 0.0 -20.0" dynamic="true">
 					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.08195 -0.17768 0.24" rot="0" file="MOD/Birds/pigon.vox" object="wing2"/>
 				</body>
 			</body>
