@@ -1,0 +1,30 @@
+<scene version="1.5.3" shadowVolume="200 50 200">
+	<environment template="sunset"/>
+	<script file="main.lua"/>
+	<instance pos="0.0 -0.2 0.0" rot="0.0 0.0 0.0" file="MOD/client.xml"/>
+	<script file="sandbox.lua"/>
+	<voxbox pos="-64.7 0.0 -75.5" rot="0.0 0.0 0.0" size="1478 1 1418" offset="-114.0 0.0 -611.0"/>
+	<voxbox pos="-64.7 0.0 -75.5" rot="0.0 0.0 0.0" size="1478 1 1418" offset="-114.0 0.0 -611.0"/>
+	<voxbox pos="-25.0 21.0 -26.7" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="-46.4 0.9 -31.0" rot="0.0 0.0 0.0" size="544 99 119" offset="283.0 -99.0 131.0"/>
+	<voxbox pos="-46.4 0.9 -31.0" rot="0.0 -40.0 0.0" size="544 448 119" offset="283.0 -99.0 131.0"/>
+	<voxbox pos="-46.4 35.7 11.4" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="-46.4 4.4 11.4" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="-46.4 10.8 -30.1" rot="0.0 0.0 0.0" size="544 0 116" offset="283.0 64.0 -123.0"/>
+	<voxbox pos="23.6 21.6 11.4" rot="0.0 0.0 0.0" size="544 1 533" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="4.9 0.0 -26.7" rot="0.0 120.0 90.0" size="434 63 533" offset="283.0 0.0 -123.0"/>
+	<voxbox pos="-22.39999 0.0 22.00001" rot="0.0 90.0 90.0" size="434 63 806" offset="283.00003 0.00002 -395.99997"/>
+	<voxbox pos="56.80001 0.0 22.00001" rot="0.0 180.0 90.0" size="82 63 806" offset="283.00003 0.00002 -395.99997"/>
+	<voxbox pos="56.80001 15.8 22.00001" rot="0.0 180.0 90.0" size="82 63 806" offset="283.00003 0.00002 -395.99997"/>
+	<voxbox pos="56.80001 31.6 22.00001" rot="0.0 180.0 90.0" size="82 63 806" offset="283.00003 0.00002 -395.99997"/>
+	<spawnpoint pos="-2.7 0.1 0.25" rot="0 180 0"/>
+	<body tags="targetObject" pos="10.6 12.3 -2.7" rot="0.0 0.0 0.0" dynamic="true">
+		<voxbox pos="0.0" size="10 10 10"/>
+	</body>
+	<body tags="startObject" pos="10.6 0.1 18.9" rot="0.0 0.0 0.0" dynamic="true">
+		<voxbox size="10 10 10"/>
+	</body>
+	<instance pos="0.0 0.0 1.5" rot="0.0 -90.0 0.0" file="MOD/Birds/pigon.xml"/>
+	<joint pos="0.0 0.0 0.0" rot="0.0 90.0 0.0" type="hinge" size="0.3"/>
+</scene>
+
