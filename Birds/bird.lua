@@ -15,6 +15,10 @@ function initPathFindAPI()
 
     pathData = {}
     ringSprite = LoadSprite("gfx/ring.png")
+    flightData = {}
+    flightData.status = "idle"
+    flightData.speedBoost = 0
+    flightData.timeGliding = 0
 end
 
 function behaviourTableInit()
@@ -32,7 +36,7 @@ function behaviourTableInit()
                 { "idle", 60 },
                 { "peck", 12 },
                 { "walk", 25 },
-                { "fly", 2000 },
+                { "fly", 2 },
             },
             totalPercent = 0
         },
@@ -42,7 +46,7 @@ function behaviourTableInit()
             { "idle", 60 },
             { "peck", 15 },
             { "walk", 20 },
-            { "fly", 0.5 },
+            { "fly", 2 },
             },
             totalPercent = 0
         }
@@ -59,6 +63,8 @@ function stateInit()
     state.randomEventTimer = 1
     state.randomEventDuration = 0
     state.eventInitialized = false
+
+   
 end
 
 function animationInit()
@@ -79,6 +85,10 @@ function birdInit()
     bird.fwd = TransformToParentVec(bird.transform, Vec(0, 0, -1))
     bird.allShapes = FindShapes("", false)
     bird.allBodies = FindBodies("")
+    bird.allowedVelocity = 0
+    bird.vel = GetBodyVelocity(bird.body)
+    bird.alive = true
+    bird.canFly = true
 
     bird.supposedRotation = Quat()
     bird.mass = GetBodyMass(bird.body)
@@ -110,17 +120,38 @@ function birdInit()
         local shape = bird.allShapes[i]
         SetShapeCollisionFilter(shape, 250, 5)
     end
+
+    -- This piece crap is to check if the spawn process stopped and to set colission filter again
+    initialValues = {
+        x = 0,
+        y = 0,
+        z = 0
+      }
+
+    local x,y,z = GetQuatEuler(TransformToLocalTransform(bird.transform,bird.wings[1].transform).rot)
+    initialValues.x = x
+    initialValues.y = y
+    initialValues.z = z
+    randomAssCounter = 0
 end
 
 
 
 function birdUpdate(dt)
+
+    if bird.alive == false then return end 
+
+    for i=1,#bird.wings do 
+        if IsBodyBroken(bird.wings[i].body) then bird.canFly = false end 
+    end
+
     bird.transform = GetBodyTransform(bird.body)
     bird.fwd = TransformToParentVec(bird.transform, Vec(0, 0, -1))
     bird.up = TransformToParentVec(bird.transform, Vec(0, 1, 0))
     bird.wingAxis = TransformToParentTransform(bird.transform, bird.wingAxisLocalTransform)
     local com = GetBodyCenterOfMass(bird.body)
     bird.com = TransformToParentPoint(bird.transform, com)
+    bird.vel = GetBodyVelocity(bird.body)
 
     bird.status = "roam"
 
@@ -132,37 +163,92 @@ function birdUpdate(dt)
     end
 
     local hit,dist,normal,shape = QueryRaycast(bird.transform.pos,Vec(0,-1,0),6,0,false)
-    if dist > 0.2 then 
-        bird.onGround = false 
+    if dist < 0.3 or IsPointInWater(VecAdd(bird.com,Vec(0,-0.5,0))) then 
+        bird.onGround = true
         bird.distFromGround = dist
     else 
-        bird.onGround = true
+        bird.onGround = false 
         bird.distFromGround = dist
     end
 
+    if IsBodyBroken(bird.body) or IsBodyBroken(bird.head.body) then 
+        bird.alive = false
+        local xml = '<joint size="0.3"/>'
+        for i = 1, #bird.wings do
+            local wing = bird.wings[i]
+            local t = GetBodyTransform(wing.body)
+            bird.wings[i].transform = t
+    
+            local hingePoint = TransformToParentTransform(bird.transform, wing.localTransform)
+            Spawn(xml,hingePoint,false,true)
+            xml = '<joint pos="0.0 0.0 0.0" rot="0.0 90.0 0.0" type="hinge" size="0.3"/>'
+            local localTransform = TransformToParentTransform(bird.transform,bird.head.localTransform)
+            Spawn(xml,localTransform,false,true)
+        end
+    end 
+    
 
     randomEvent(dt)
     handleBirdHead()
-    handleWings() -- WingAnimation
     birdMovement()
-    flight()
+    if bird.canFly == true then
+        handleWings() -- WingAnimation
+        flight(dt)
+    end
+
+    
+    local x,y,z = GetQuatEuler(TransformToLocalTransform(bird.transform,bird.wings[1].transform).rot)
+
+    if checkDeviation(x, y, z) then 
+        randomAssCounter = randomAssCounter + 1 
+        if randomAssCounter > 40 then 
+            for i = 1, #bird.allShapes do
+                local shape = bird.allShapes[i]
+                SetShapeCollisionFilter(shape, 250, 5)
+            end
+        end 
+    else 
+        randomAssCounter = math.max(randomAssCounter - 2,0)
+    end
 end
 
+function checkDeviation(x, y, z)
+    -- Calculate the sum of absolute differences
+    local sumOfDifferences = math.abs(x - initialValues.x) + math.abs(y - initialValues.y) + math.abs(z - initialValues.z)
+  
+    -- Check if the sum of differences is at least 20
+    return sumOfDifferences >= 15
+  end
+
 function returnClosestSegment()
-    local data = pathData[1].segment
+
+    local data = pathData[1].path
     local closestDist = 20000
     local closestSegmentNr = 0
-    
-    for i = 1, #data do 
-        local pos = data[i].segmentPoint
-        local dist = AutoVecDist(pos, bird.transform.pos)
-        
+
+    -- Step 1: Check every 10th value
+    for i = 1, #data, 10 do
+        local dist = AutoVecDist(data[i].pos, bird.transform.pos)
+
         if dist < closestDist then
             closestDist = dist
             closestSegmentNr = i
         end
     end
-    
+
+    -- Step 2: Perform a detailed search in the identified segment
+    local startSearchIndex = math.max(1, closestSegmentNr - 9)
+    local endSearchIndex = math.min(#data, closestSegmentNr + 9)
+
+    for i = startSearchIndex, endSearchIndex do
+        local dist = AutoVecDist(data[i].pos, bird.transform.pos)
+
+        if dist < closestDist then
+            closestDist = dist
+            closestSegmentNr = i
+        end
+    end
+
     -- Now closestSegmentNr contains the index of the closest segment
     return closestSegmentNr
 end
@@ -172,119 +258,141 @@ function debug()
    --AutoInspectWatch(pathFind,"path",1," ",false)
     if state.randomEvent == "foundFlightPath" then
         local closestSegment = returnClosestSegment()
-
-        local data = pathData[1].segment
-        AutoInspectWatch(data," ",1," ")
-        local closestSegmentData = data[closestSegment].segmentPathPoints
+        local data = pathData[1].path
 
         local dirToBirb, dirToNextSegment 
         if closestSegment ~= #data then 
-            dirToBirb = VecNormalize(VecSub(data[closestSegment].segmentPoint,bird.transform.pos))
-            dirToNextSegment = VecNormalize(VecSub(data[closestSegment+1].segmentPoint,data[closestSegment].segmentPoint))
+            dirToBirb = VecNormalize(VecSub(data[closestSegment].pos,bird.transform.pos))
+            dirToNextSegment = VecNormalize(VecSub(data[closestSegment].pos,data[closestSegment].pos))
         end 
 
         if VecDot(dirToNextSegment,dirToBirb) >= 0 and closestSegment ~= 1 then 
             closestSegment = closestSegment - 1
         end
-      DebugLine(data[closestSegment].segmentPoint,bird.transform.pos)
-        local pos, index = findClosestPointOnPath(closestSegment)
-       -- DebugLine(pos,GetPlayerPos())
-       DebugLine(pos,bird.transform.pos,1,0,0,1)
 
-        DebugLine(pathData[1].startPos,data[1].segmentPoint,1,1,0,1)
-        for j=1, #data do 
-            DebugCross(data[j].segmentPoint)
-            AutoTooltip(j,data[j].segmentPoint)
-        end
-        DebugPrint(closestSegment)
-      
-       
-        -- Add start and end pos here
-        for j=1, #data do 
-            for i=1,#data[j].segmentPathPoints do
-                local path = data[j].segmentPathPoints
-                if i ~= #path then
-                    --DebugLine(curve[i],GetPlayerPos())
-                    DebugLine(path[i].pos,path[i+1].pos,1,1,0,1)
-                    DebugCross(path[i].pos)
-                  --  AutoTooltip("point".. i .. " of segement".. j,path[i].pos)
-                    --DrawSprite(ringSprite,Transform(path[i].pos,QuatLookAt(path[i].pos,path[i+1].pos)),path[i].radius,path[i].radius,1,1,1,1)
-                end
+
+
+       DebugLine(data[1].pos,pathData[1].startPos)
+        for i=1,#data do
+            if i ~= #data then
+                DebugLine(data[i].pos,data[i+1].pos,1,1,0,1)
+                DebugCross(data[i].pos)
+              --  DrawSprite(ringSprite,Transform(data[i].pos,QuatLookAt(data[i].pos,data[i+1].pos)),data[i].radius,data[i].radius,1,1,1,1)
             end
         end
-      --  DebugLine(path[#path].pos,pathData[1].endpos,1,1,0,1)
+        DebugWatch("ad",pathData[1].startPos)
+        DebugLine(data[#data].pos,pathData[1].endPos,1,1,0,1)
     end
 end
 
-function flight()
-    --AutoInspectWatch(pathFind,"path",1," ",false)
-     if state.randomEvent == "foundFlightPath" then
-         local closestSegment = returnClosestSegment()
-         local data = pathData[1].segment
-         local closestSegmentData = data[closestSegment].segmentPathPoints
- 
-         local dirToBirb, dirToNextSegment 
-         if closestSegment ~= #data then 
-             dirToBirb = VecNormalize(VecSub(data[closestSegment].segmentPoint,bird.transform.pos))
-             dirToNextSegment = VecNormalize(VecSub(data[closestSegment+1].segmentPoint,data[closestSegment].segmentPoint))
-         end 
- 
-         if VecDot(dirToNextSegment,dirToBirb) >= 0 and closestSegment ~= 1 then 
-             closestSegment = closestSegment - 1
-         end
-         local pos, index = findClosestPointOnPath(closestSegment)
+function draw(dt)
+ --   debug()
+    if InputDown("o") then DebugLine(bird.transform.pos,GetPlayerPos()) end
+end
 
-         DebugWatch("index",index)
-         DebugWatch("clos",closestSegment)
-        if index ~= #closestSegmentData then
-            pos = closestSegmentData[index+1].pos
-            DebugPrint("asd")
+
+
+function flight(dt)
+
+
+
+   --AutoInspectWatch(pathFind,"path",1," ",false)
+    if state.randomEvent == "foundFlightPath" then
+
+        if pathData[1].path == nil then 
+            table.remove(pathData,1)
+            return
+        end
+
+        local closestSegment = returnClosestSegment()
+        local data = pathData[1].path
+
+        local dirToBirb, dirToNextSegment 
+        if closestSegment+1 < #data then 
+            closestSegment = closestSegment+1
+            dirToBirb = VecNormalize(VecSub(data[closestSegment+1].pos,bird.transform.pos))
+            dirToNextSegment = VecNormalize(VecSub(data[closestSegment].pos,data[closestSegment].pos))
+        end 
+
+        if VecDot(dirToNextSegment,dirToBirb) >= 0 and closestSegment ~= 1 then 
+            closestSegment = closestSegment - 1
+        end
+
+    --DebugLine(data[closestSegment].pos,bird.transform.pos,1,0,0,1)
+        if closestSegment+10 < #data then
+            local dist = AutoVecDist(data[closestSegment+10].pos,bird.transform.pos)
+            local lookAheadDir = VecNormalize(VecSub(data[closestSegment+10].pos,bird.transform.pos))
+        --    DebugLine(VecAdd(bird.transform.pos,lookAheadDir),bird.transform.pos)
+
+            --DebugPrint(data[closestSegment].radius)
+
+            local force = math.abs(data[closestSegment].radius)
+            local yOffset = bird.com[2] - data[closestSegment].pos[2]
+            local hover = 0.17
+
+            if yOffset < hover then
+                local desiredForce = AutoClamp((hover - yOffset) * 20,-3,3)
+                ConstrainVelocity(bird.body, 0, bird.com, Vec(0,1,0), desiredForce,-100/force,100/force)
+            end
+
+            ConstrainVelocity(bird.body,0,bird.com,bird.fwd,1)
+
+            local localVel = TransformToLocalVec(bird.transform, bird.vel)
+            local antiSideways = Vec(localVel[1] * -1, 0, 0)
+            local newVel = TransformToParentVec(bird.transform, antiSideways)
+            local speed = VecLength(newVel)
+
+           -- DebugLine(bird.transform.pos,VecAdd(bird.transform.pos,newVel))
+
+            if speed > 0.5 and bird.onGround == false then
+                ConstrainVelocity(bird.body, 0, bird.com, newVel, speed, math.min( speed, 10) * -1, math.min( speed, 10))
+            end
+
+            local dot = VecDot(bird.fwd,Vec(0,1,0))
+            local dotFwd = AutoClamp(math.abs(dot),0.5,1)
+
+            if dot <= 0.3 and dot >= -0.3 then 
+                flightData.timeGliding = flightData.timeGliding + dt/2
+            else 
+                flightData.timeGliding = flightData.timeGliding - dt*2
+            end
+            flightData.timeGliding = AutoClamp(flightData.timeGliding,1,2)
+
+            
+
+            local quat = QuatLookAt(bird.transform.pos,data[closestSegment+10].pos)
+            local dif = #data - closestSegment - 10 
+            local total = 60
+            if dif < total then
+            --    DebugPrint(dif) 
+                local x,y,z = GetQuatEuler(quat)
+                local newQuat = QuatEuler(0,y,0)
+
+             --   DebugPrint(dif/total)
+                ConstrainVelocity(bird.body,0,bird.com,lookAheadDir,5)
+                ConstrainOrientation(bird.body,0,bird.transform.rot,newQuat,10,15)
+            else 
+                ConstrainVelocity(bird.body,0,bird.com,bird.fwd,10*(1-dotFwd+0.1)*(flightData.timeGliding))
+                ConstrainOrientation(bird.body,0,bird.transform.rot,quat,10,20)
+            end
+            
         else 
-            pos = data[closestSegment+1].segmentPathPoints[1].pos
+            eventReset()
+            table.remove(pathData,1)
         end
-         ConstrainPosition(bird.body,0,bird.transform.pos,pos,5)
-        
-         -- Add start and end pos here
-         for j=1, #data do 
-             for i=1,#data[j].segmentPathPoints do
-                 local path = data[j].segmentPathPoints
-                 if i ~= #path then
-                     --DebugLine(curve[i],GetPlayerPos())
-                     DebugLine(path[i].pos,path[i+1].pos,1,1,0,1)
-                     DebugCross(path[i].pos)
-                   --  AutoTooltip("point".. i .. " of segement".. j,path[i].pos)
-                     --DrawSprite(ringSprite,Transform(path[i].pos,QuatLookAt(path[i].pos,path[i+1].pos)),path[i].radius,path[i].radius,1,1,1,1)
-                 end
-             end
-         end
-       --  DebugLine(path[#path].pos,pathData[1].endpos,1,1,0,1)
-     end
- end
 
-function findClosestPointOnPath(closestSegment)
-
-    if not closestSegment then
-        return nil  -- No closest segment found
+    --  DebugLine(path[#path].pos,pathData[1].endpos,1,1,0,1)
     end
-
-    local points = pathData[1].segment[closestSegment].segmentPathPoints
-    local closestPoint = nil
-    local closestDist = 20000
-    local index = 0
-    
-    for i = 1, #points do
-        local pos = points[i].pos
-        local dist = AutoVecDist(pos, bird.transform.pos)
-       
-        if dist < closestDist then
-            closestDist = dist
-            closestPoint = pos
-            index = i
-        end
-    end
-
-    return closestPoint, index
 end
+
+function roundToNearestOne(number)
+    if number > 0 then
+        return 1
+    else
+        return -1
+    end
+end
+
 
 function handleBirdHead()
     local localTransform = TransformToParentTransform(bird.transform,bird.head.localTransform)
@@ -312,7 +420,6 @@ function randomEvent(dt)
 
         state.eventInitialized = false
 
-        DebugPrint(GetTime())
     elseif state.randomEvent == "idle" then 
         state.randomEventTimer = state.randomEventTimer - dt
     end
@@ -333,17 +440,25 @@ function randomEvent(dt)
             eventReset()
         end
     elseif state.randomEvent == "fly" then
-        local min,max = GetBodyBounds(GetWorldBody())
-        local startPos = bird.transform.pos
-        local endPos
-        for i=1,10 do 
-            local randomPos = Vec(math.random(min[1],max[1]),math.random(min[2],max[2]),math.random(min[3],max[3]))
-            local hit,dist = QueryRaycast(randomPos,Vec(0,-1,0),200,0,false)
-            endPos = VecAdd(randomPos,VecScale(Vec(0,-1,0),dist-1))
-            if hit then break end
+        if bird.onGround and flightData.status == "idle" and bird.canFly then
+            local min,max = GetBodyBounds(GetWorldBody())
+            local startPos = VecAdd(bird.transform.pos,Vec(0,1.5,0))
+            local endPos
+            for i=1,10 do 
+                local randomPos = Vec(math.random(min[1],max[1]),math.random(min[2],max[2]),math.random(min[3],max[3]))
+                QueryRequire("physical large visible")
+                local hit,dist = QueryRaycast(randomPos,Vec(0,-1,0),200,0,false)
+                endPos = VecAdd(randomPos,VecScale(Vec(0,-1,0),dist-1))
+                if hit then 
+                    flightData.status = "waiting"
+                    requestFlyPath(startPos,endPos)
+                    break
+                end
+            end
+            eventReset()
+        else 
+            eventReset()
         end
-        requestFlyPath(startPos,endPos)
-        eventReset()
     end
 end
 
@@ -370,7 +485,7 @@ function handleWings()
         ConstrainPosition(wing.body, bird.body, t.pos, hingePoint.pos)
 
         bird.wings[i].currentWingRot = TransformToParentTransform(bird.transform, Transform()).rot
-        if InputDown("r") then
+        if state.randomEvent == "foundFlightPath" and bird.onGround == false then
             wingAnimation()
         else 
             ConstrainOrientation(wing.body, 0, wing.transform.rot, wing.currentWingRot, 10)
@@ -381,9 +496,10 @@ end
 function birdMovement()
     --ConstrainOrientation(bird.body,0,bird.transform.rot,Quat(),10,10)
 
+    if bird.onGround == true then
     local cross = VecCross(Vec(0, -1, 0), bird.up)
     ConstrainAngularVelocity(bird.body,0,cross,1)
-
+   
 
     -- Basic anti wall avoidance behavior
     QueryRequire("physical visible")
@@ -395,7 +511,7 @@ function birdMovement()
         local cross = VecCross(VecNormalize(Vec(normal[1],0,normal[3])), bird.fwd)
         ConstrainAngularVelocity(bird.body,0,cross,-0.5)
     end
-
+end 
   --  local playerFwd = TransformToParentVec(GetPlayerTransform(), Vec(0, 0, -1))
   --  local cross = VecCross(playerFwd, bird.up)
   --  local dot = 0.5 - VecDot(bird.fwd, playerFwd)
@@ -403,11 +519,13 @@ function birdMovement()
   --  DebugLine(bird.transform.pos, VecAdd(bird.transform.pos, cross))
   --  ConstrainAngularVelocity(bird.body, 0, cross, dot, -10, 10)
 
-    DebugLine(bird.transform.pos,VecAdd(bird.transform.pos,bird.fwd))
+   -- DebugLine(bird.transform.pos,VecAdd(bird.transform.pos,bird.fwd))
 end
 
 function wingAnimation()
-    local wingSpeed = 10
+
+    local dot = 1+VecDot(bird.fwd,Vec(0,1,0))*0.5
+    local wingSpeed = 10*dot
 
     for i = 1, #bird.wings do
         local wing = bird.wings[i]
@@ -428,7 +546,7 @@ function wingAnimation()
         rot = TransformToParentQuat(bird.transform, QuatEuler(align+offsetAlign ,yaw + offsetYaw,  flap+flapOffset))
         --SetBodyTransform(wing.body,Transform(TransformToParentTransform(wing.transform,wing.localTransform).pos,rot))
         --SetBodyAngularVelocity(wing.body,Vec())
-        ConstrainOrientation(wing.body, 0, wing.transform.rot, rot, 10)
+        ConstrainOrientation(wing.body, 0, wing.transform.rot, rot, 10*dot)
     end
 end
 
@@ -438,14 +556,9 @@ function TransformToParentQuat(parentT, quat)
     return t.rot
 end
 
+
 function update(dt)
     birdUpdate(dt)
-
-    
-end
-
-function draw(dt)
-    debug()
 end
 
 
@@ -461,9 +574,6 @@ function requestFlyPath(strpos,endpos)
 
     local data = {}
     data.id = id
-    pathData[#pathData+1] = {}
-    pathData[#pathData].startPos = strpos
-    pathData[#pathData].endpos = endpos
 
     data.startPos = strpos
     data.endPos = endpos
@@ -480,8 +590,9 @@ end
 
 function pathRecieve(dataString)
     local data = unserialize(dataString)
+
     if data.status == "error" then
-        DebugPrint("The provided path was nil. Requesting another path")
+        print("The provided path was nil. Requesting another path")
         requestNewPath()
         return
     end
@@ -498,7 +609,6 @@ function pathPostProcessor(data)
 --  print(serialize(data))
 --  print(#data)
 
-
     knots[#knots+1] = data.startPos
     knots[#knots+1] = dataPath[1].pos
     for i=1,#dataPath do
@@ -510,10 +620,15 @@ function pathPostProcessor(data)
     end
     knots[#knots+1] = dataPath[#dataPath].pos
     knots[#knots+1] = data.endPos
---
+
     if #knots > 3 then
-        pathData[#pathData].segment = buildCardinalSpline(knots,14,dataPath)
+        pathData[#pathData+1] = {}
+        pathData[#pathData].startPos = data.startPos
+        pathData[#pathData].endPos = data.endPos
+        pathData[#pathData].path = buildCardinalSpline(knots,14,dataPath)
+
         state.randomEvent = "foundFlightPath"
+        flightData.status = "idle"
     else 
         state.randomEvent = "idle"
     end
@@ -531,10 +646,6 @@ function buildCardinalSpline(knots,precision,data)
 
     local magicNumber = 4.1
     for i=1, #knots do
-        local index = #curve+1
-        curve[index] = {}
-        curve[index].segmentPoint = knots[i+1]
-        curve[index].segmentPathPoints = {} 
         if i ~= #knots-2 then 
             -- # Hermite to bezier conversion https://youtu.be/jvPPXbo87ds?t=2528
             local velocity = VecSub(knots[i+2],knots[i])
@@ -544,15 +655,14 @@ function buildCardinalSpline(knots,precision,data)
             local controllPoint2 = VecAdd(knots[i+2],VecScale(controllPoint1Knot2,-1))
             for j=1, precision do 
                -- DebugLine(controllPoint1,GetPlayerPos())
-                curve[index].segmentPathPoints[#curve[index].segmentPathPoints+1] = {}
-                curve[index].segmentPathPoints[#curve[index].segmentPathPoints].pos = bezierFast({knots[i+1],VecAdd(knots[i+1],controllPoint1),controllPoint2,knots[i+2]},j/precision)
-                curve[index].segmentPathPoints[#curve[index].segmentPathPoints].radius = AutoLerp(data[i].pos[2]-data[i].max[2],data[i+1].pos[2]-data[i+1].max[2],j/precision)
+                curve[#curve+1] = {} 
+                curve[#curve].pos = bezierFast({knots[i+1],VecAdd(knots[i+1],controllPoint1),controllPoint2,knots[i+2]},j/precision)
+                curve[#curve].radius = AutoLerp(data[i].pos[2]-data[i].max[2],data[i+1].pos[2]-data[i+1].max[2],j/precision)
             end
         else 
             break
         end
     end
-    table.remove(curve,#curve)
 
     return curve
 end
