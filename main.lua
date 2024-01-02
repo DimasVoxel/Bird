@@ -6,20 +6,54 @@
 
 -- Local is faster than global
 --local cacheSort = {}
-local checkShape = {}
-local vertecies = {}
-local G_cache = {}
-local octGroup = {} 
+
+
 
 --local spatialSort = {}
 
 function init()
 
+    checkShape = {}
+    vertecies = {}
+    G_cache = {}
+    octGroup = {} 
+
     compressRegistry = false
     starRoutine = coroutine.create(aStar)
 
     Spawn("MOD/client.xml",Transform())
+    Spawn('<script pos="0.0 0.2 0.0" file="MOD/spawnbird.lua"/>',Transform())
+    mapName = removeForwardSlashes(GetString("game.levelpath"))
+    if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
+        initCheckShape()
+        scanAll(true)
 
+        vertecies = nil
+        collectgarbage("collect")
+    else
+        if compressRegistry then
+            retrieveCompressedData()
+        else
+            retrieveData() 
+        end
+    end
+
+    
+    print("Final cleanup and API setup\n")
+    RegisterListenerTo("requestPath","addPathtoQueue")
+
+    queue = {}
+    worker = {}
+    worker.status = "free"
+    worker.data = {}
+
+    allowedMaxTimePerPath = 8
+
+    drawlist = {}
+end
+
+function initCheckShape()
+    Spawn("MOD/boxes.xml",Transform())
     list = {}
     list[#list+1] = FindBody("128",true)
     list[#list+1] = FindBody("64",true)
@@ -40,34 +74,6 @@ function init()
             SetTag(checkShape[i].shapes[j],"ground")
         end
     end
-
-    mapName = removeForwardSlashes(GetString("game.levelpath"))
-    if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
-        Spawn("MOD/boxes.xml",Transform())
-        scanAll(true)
-    else
-        if compressRegistry then
-            retrieveCompressedData()
-        else
-            retrieveData() 
-        end
-    end
-
-    
-    print("Final cleanup and API setup\n")
-    RegisterListenerTo("requestPath","addPathtoQueue")
-
-    queue = {}
-    worker = {}
-    worker.status = "free"
-    worker.data = {}
-
-    allowedMaxTimePerPath = 8
-    vertecies = nil
-
-    -- Debug stuff 
-
-    drawlist = {}
 end
 
 function retrieveData() 
@@ -127,10 +133,12 @@ function tick(dt)
 end
 
 function debugDraw()
+    if InputDown("k") then
     for i=1,#drawlist do 
         -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
          DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
      end
+    end
 end
 
 ------------------------------- Terrain Scanning and node graph Building -------------------------------
@@ -390,7 +398,7 @@ function queueWorker(dt)
     if worker.status == "busy" then 
     --    AutoInspectWatch(worker,"worker",1," ",false)
         if #queue == 0 then 
-            worker.busyTimer = worker.busyTimer + dt/2
+            worker.busyTimer = worker.busyTimer + dt/1.5
         else 
             worker.busyTimer = worker.busyTimer + dt 
         end
@@ -414,9 +422,9 @@ function queueWorker(dt)
             data.path[#data.path].pos = G_cache[worker.result[i]].pos
             data.path[#data.path].min = G_cache[worker.result[i]].min
             data.path[#data.path].max = G_cache[worker.result[i]].max
-            data.path[#data.path].startPos = worker.data.startPos
-            data.path[#data.path].endPos = worker.data.endPos
         end
+        data.startPos = worker.data.startPos
+        data.endPos = worker.data.endPos
         local dataString = serialize(data)
         local listener = "pathRecieve"..data.id
 
@@ -435,7 +443,6 @@ end
 
 function addPathtoQueue(dataString)
     local data = unserialize(dataString)
-
     local index = #queue+1
     queue[index] = {}
     queue[index].status = {}
@@ -535,7 +542,7 @@ function aStar(startPoint, endPoint)
                 local len = VecLength(dir)/3
                 local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbour.cost*curDistModifier + len*curDistModifier + dot*(10*math.max(curDistModifier,0.3))-(elevationChange*2)*curDistModifier --+ counter --*superCost
                 --local costToNext = currentNode.gCost +  math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + (neighbour.cost + len + dot * 10 * math.max(curDistModifier, 0.3) - elevationChange * 4) * curDistModifier
-
+                coroutine_yield()
                 if not openNodes[neighbourIndex] or costToNext < openNodes[neighbourIndex].gCost then
                     local newneighbour = {
                         gCost = costToNext,
@@ -551,7 +558,7 @@ function aStar(startPoint, endPoint)
                     drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
                   -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighbourIndex].pos)
 
-                    coroutine_yield()
+                    
 
                     openNodes[neighbourIndex] = newneighbour
                     walked[neighbourIndex] = newneighbour
@@ -683,3 +690,11 @@ function combineTableChunks(chunks)
 
     return resultTable
 end
+
+    function handleCommand(cmd)
+        if cmd == "quickload" then
+     --   G_cache = CACHE
+        starRoutine = coroutine.create(aStar)
+        RegisterListenerTo("requestPath","addPathtoQueue")
+        end
+    end
