@@ -57,15 +57,18 @@ function behaviourTableInit()
     end
 end
 
+function behaviourStack()
+    
+end
+
 function stateInit()
     state = {}
     state.randomEvent = "idle"
     state.randomEventTimer = 1
     state.randomEventDuration = 0
     state.eventInitialized = false
-
-   
 end
+
 
 function animationInit()
     animation = {}
@@ -186,7 +189,7 @@ function birdUpdate(dt)
             Spawn(xml,localTransform,false,true)
         end
     end 
-    
+
 
     randomEvent(dt)
     handleBirdHead()
@@ -196,7 +199,7 @@ function birdUpdate(dt)
         flight(dt)
     end
 
-    
+
     local x,y,z = GetQuatEuler(TransformToLocalTransform(bird.transform,bird.wings[1].transform).rot)
 
     if checkDeviation(x, y, z) then 
@@ -280,13 +283,12 @@ function debug()
               --  DrawSprite(ringSprite,Transform(data[i].pos,QuatLookAt(data[i].pos,data[i+1].pos)),data[i].radius,data[i].radius,1,1,1,1)
             end
         end
-        DebugWatch("ad",pathData[1].startPos)
         DebugLine(data[#data].pos,pathData[1].endPos,1,1,0,1)
     end
 end
 
 function draw(dt)
- --   debug()
+   -- debug()
     if InputDown("o") then DebugLine(bird.transform.pos,GetPlayerPos()) end
 end
 
@@ -320,19 +322,23 @@ function flight(dt)
 
     --DebugLine(data[closestSegment].pos,bird.transform.pos,1,0,0,1)
         if closestSegment+10 < #data then
+            local dif = #data - closestSegment - 10 
             local dist = AutoVecDist(data[closestSegment+10].pos,bird.transform.pos)
             local lookAheadDir = VecNormalize(VecSub(data[closestSegment+10].pos,bird.transform.pos))
         --    DebugLine(VecAdd(bird.transform.pos,lookAheadDir),bird.transform.pos)
 
             --DebugPrint(data[closestSegment].radius)
 
-            local force = math.abs(data[closestSegment].radius)
-            local yOffset = bird.com[2] - data[closestSegment].pos[2]
+            local difStart = AutoClamp(closestSegment/60,0.5,1)
+
+            local force = (math.abs(data[closestSegment].radius)*math.min(dif/60,1))*difStart
+
+            local yOffset = bird.com[2] - data[closestSegment+3].pos[2]
             local hover = 0.17
 
             if yOffset < hover then
-                local desiredForce = AutoClamp((hover - yOffset) * 20,-3,3)
-                ConstrainVelocity(bird.body, 0, bird.com, Vec(0,1,0), desiredForce,-100/force,100/force)
+                local desiredForce = AutoClamp((hover - yOffset) * 10,-1.5,3)
+                ConstrainVelocity(bird.body, 0, bird.com, Vec(0,1,0), desiredForce,-20,40)
             end
 
             ConstrainVelocity(bird.body,0,bird.com,bird.fwd,1)
@@ -361,21 +367,22 @@ function flight(dt)
             
 
             local quat = QuatLookAt(bird.transform.pos,data[closestSegment+10].pos)
-            local dif = #data - closestSegment - 10 
+            
             local total = 60
             if dif < total then
             --    DebugPrint(dif) 
                 local x,y,z = GetQuatEuler(quat)
                 local newQuat = QuatEuler(0,y,0)
 
+                flightData.timeGliding = flightData.timeGliding - dt*3
              --   DebugPrint(dif/total)
-                ConstrainVelocity(bird.body,0,bird.com,lookAheadDir,5)
+
                 ConstrainOrientation(bird.body,0,bird.transform.rot,newQuat,10,15)
             else 
-                ConstrainVelocity(bird.body,0,bird.com,bird.fwd,10*(1-dotFwd+0.1)*(flightData.timeGliding))
+                
                 ConstrainOrientation(bird.body,0,bird.transform.rot,quat,10,20)
             end
-            
+            ConstrainVelocity(bird.body,0,bird.com,bird.fwd,10*(1-dotFwd+0.1)*(flightData.timeGliding)*difStart)
         else 
             eventReset()
             table.remove(pathData,1)
@@ -442,6 +449,8 @@ function randomEvent(dt)
     elseif state.randomEvent == "fly" then
         if bird.onGround and flightData.status == "idle" and bird.canFly then
             local min,max = GetBodyBounds(GetWorldBody())
+            min = VecAdd(min,Vec(5,0,5))
+            max = VecAdd(max,Vec(-5,0,-5))
             local startPos = VecAdd(bird.transform.pos,Vec(0,1.5,0))
             local endPos
             for i=1,10 do 
@@ -449,7 +458,7 @@ function randomEvent(dt)
                 QueryRequire("physical large visible")
                 local hit,dist = QueryRaycast(randomPos,Vec(0,-1,0),200,0,false)
                 endPos = VecAdd(randomPos,VecScale(Vec(0,-1,0),dist-1))
-                if hit then 
+                if hit and IsPointInWater(endPos) == false then 
                     flightData.status = "waiting"
                     requestFlyPath(startPos,endPos)
                     break
@@ -589,6 +598,7 @@ function generateNewId()
 end
 
 function pathRecieve(dataString)
+    
     local data = unserialize(dataString)
 
     if data.status == "error" then
