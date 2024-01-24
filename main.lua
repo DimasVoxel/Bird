@@ -760,11 +760,11 @@ end
 
 function draw()
     UiPush()
-        UiTranslate(UiCenter(), UiHeight()-100)
+        UiTranslate(UiCenter(), UiHeight()-200)
         UiAlign("center")
         UiFont("bold.ttf", 24)
         UiText(progressMessage)
-        UiTranslate(0,-20)
+        UiTranslate(0,50)
         UiText("Press return to show debug: ".. tostring(showVisuals))
     UiPop()
 end
