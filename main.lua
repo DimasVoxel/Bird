@@ -765,6 +765,8 @@ function draw()
         UiFont("bold.ttf", 24)
         UiText(progressMessage)
         UiTranslate(0,50)
+        if not progressMessage == "" then
         UiText("Press return to show debug: ".. tostring(showVisuals))
+        end
     UiPop()
 end
