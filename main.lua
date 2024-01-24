@@ -12,6 +12,12 @@
 --local spatialSort = {}
 
 function init()
+    initDone = false
+    initialize = coroutine.create(start)
+    perTickLimit = 300
+end
+
+function start()
 
     checkShape = {}
     vertecies = {}
@@ -21,7 +27,7 @@ function init()
     compressRegistry = false
     starRoutine = coroutine.create(aStar)
 
-    Spawn("MOD/client.xml",Transform())
+  --  Spawn("MOD/client.xml",Transform())
     Spawn('<script pos="0.0 0.2 0.0" file="MOD/spawnbird.lua"/>',Transform())
     mapName = removeForwardSlashes(GetString("game.levelpath"))
     if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
@@ -40,6 +46,7 @@ function init()
 
     
     print("Final cleanup and API setup\n")
+    progressMessage = "Final cleanup and API setup\n"
     RegisterListenerTo("requestPath","addPathtoQueue")
 
     queue = {}
@@ -50,6 +57,8 @@ function init()
     allowedMaxTimePerPath = 8
 
     drawlist = {}
+    initDone = true 
+    progressMessage = ""
 end
 
 function initCheckShape()
@@ -78,6 +87,7 @@ end
 
 function retrieveData() 
     print("Retrieving Cache Chunk data: ")
+
     local chunks = {}
     local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
     for i=1,#keys do 
@@ -123,13 +133,17 @@ function retrieveCompressedData()
     octGroup = combineTableChunks(chunks)
 end
 
-
-
 function tick(dt)
-    if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
-    if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
-    queueWorker(dt)
-    debugDraw()
+    if initDone == false then
+        for i=0,perTickLimit do
+            coroutine.resume(initialize)
+        end
+    else
+        if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
+        if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
+        queueWorker(dt)
+        debugDraw()
+    end
 end
 
 function debugDraw()
@@ -145,6 +159,7 @@ end
 
 function scanAll(cacheToRegistry)
     print("Start scanning process...")
+    progressMessage = "Start scanning process..."
     if not cacheToRegistry then cacheToRegistry = false end
     local min,max = GetBodyBounds(GetWorldBody())
     local minX,maxX = min[1],max[1]
@@ -197,20 +212,26 @@ function scanAll(cacheToRegistry)
                         --cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
 
                         octGroup[index].group[#octGroup[index].group+1] = gIndex
+                        
                     end
                 end
+                
                 currentIteration = currentIteration + 1
                 local progress = (currentIteration / totalIterations) * 100
                 print("Progress: " .. math.ceil(progress) .. "%")
+                progressMessage = "Progress: " .. math.ceil(progress) .. "%"
                 SetString("level.loadingMessage",math.ceil(progress) .. "%")
             end
         end
     end
     print("Scan Complete\n")
+    progressMessage = "Scan Complete\n"
    -- AutoInspectWatch(octGroup," asd",1 ," ")
+    perTickLimit = 4000
     calculateGrid() 
+    perTickLimit = 1000
     determinNeighbours()
-    
+    perTickLimit = 1
     -- determinNeighboursOld()
 
     --ClearKey("savegame.mod.birb")
@@ -230,11 +251,13 @@ end
 
 function writeCarcheCompressed()
     print("Caching results\n")
+    progressMessage = "Caching results\n"
 
     local tableChunks = splitTable(G_cache,100000)
     for i=1,#tableChunks do 
         print("Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%")
-
+        progressMessage = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
+        coroutine.yield()
         local serializeTableString = serialize(tableChunks[i])
         local compressedString = string.format('%q',compress(serializeTableString))
 
@@ -243,8 +266,9 @@ function writeCarcheCompressed()
     
     local tableChunks = splitTable(octGroup,30)
     for i=1,#tableChunks do 
-
+        coroutine.yield()
         print("Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%")
+        progressMessage = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
 
         local serializeTableString = serialize(tableChunks[i])
         local compressedString = string.format('%q',compress(serializeTableString))
@@ -260,24 +284,32 @@ function writeCache()
 
         local tableChunks = splitTable(G_cache,20000)
         for i=1,#tableChunks do 
+            coroutine.yield()
+            print("Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%")
+            progressMessage = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
             SetString("savegame.mod.birb."..mapName..".gCache."..i,serialize(tableChunks[i])) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
         end
         
         local tableChunks = splitTable(octGroup,25)
         for i=1,#tableChunks do 
+            coroutine.yield()
+            print("Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%")
+            progressMessage = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
             SetString("savegame.mod.birb."..mapName..".octGroup."..i,serialize(tableChunks[i])) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
         end
-
+        coroutine.yield()
         SetBool("savegame.mod.birb."..mapName..".scanned",true)
 end
 
 function recursiveSearch(cache,t,depth,mainBodyT)
+    coroutine.yield()
     SetBodyTransform(checkShape[depth].body,t)                      -- This octtree checker works by moving a giant shape 
     local cost = math.pow(2,depth)/2                                -- We do a queryaabb and see if there are any shapes in its bounds
     for i=1, #checkShape[depth].shapes do                           -- After that we do a is a shape touching check. This is done because 
         QueryRequire("physical visible")                            -- Queryaabb is a simple bounds check and cylinder shapes inside would still count as occupied 
         local min,max = GetShapeBounds(checkShape[depth].shapes[i]) 
         local shapes = QueryAabbShapes(min,max)
+        AutoDrawAABB(min,max)
         if #shapes == 0 then
            calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)  -- If no shape was found we give it a cost of the current depth
         else                                                                    -- Cost is used to incourage a* to path find through larger octtree blocks 
@@ -324,6 +356,7 @@ end
 
 function calculateGrid()
     print("Creating Neighbour grid...")
+    progressMessage = "Creating Neighbour grid..."
     for index=1,#G_cache do
         local faces = G_cache[index].faces
         for dir,p in pairs(faces) do --p as in point either min or max
@@ -332,6 +365,7 @@ function calculateGrid()
                 for y=p.min[2],p.max[2],1 do 
                     if not vertecies[x][y] then vertecies[x][y] = {} end
                     for z=p.min[3],p.max[3],1 do
+                        DebugCross(G_cache[index].pos)
                         if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
                       --  if not isNumberInTable(vertecies[x][y][z],index) then
                         vertecies[x][y][z][#vertecies[x][y][z]+1] = index
@@ -340,13 +374,18 @@ function calculateGrid()
                 end
             end
         end
+        
+        coroutine.yield()
     end
     print("...Grid Completed\n")
+    progressMessage = "Creating Neighbour grid..."
 end
 
 function determinNeighbours()
    -- count = 1
     print("Finding neighbours...")
+    progressMessage = "Finding neighbours..."
+    
     for index = 1, #G_cache do              -- This stores all octtree data
         local faces = G_cache[index].faces  -- We save all faces of the octtree boxes
         for dir, points in pairs(faces) do  -- Each face stores the min and max of the face 
@@ -357,18 +396,22 @@ function determinNeighbours()
                 local x, y, z = point[1], point[2], point[3] -- To determin all neighbours near a box we build a completly new table
                 local values = vertecies[x][y][z]            -- This 3D table stores all G_cache ids at the mins and max of the faces
                 for v = 1, #values do                        -- To find a neighbour we check at vertex[min] and see which box shares it as well
-                   -- count = count + 1                      -- We check if we find an id more than once its a neighbour - Current implementaion does not support diagonal neighbour search
-                    local vertex = values[v]                 -- vertex is the G_cache id of other octtree boxes
-                    if not results[vertex] then         
-                        results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
-                    else
-                        results[vertex] = results[vertex] + 1
-                        if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then -- A value of == 1 can access all 24 diagonals, == 2 means a node graph that has access to diagonals 12 dirs, == 4 can only move up down fwd back left right
-                            G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
-                            exit = true
-                            if not isNumberInTable(G_cache[vertex].nearby, index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
-                                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
-                            end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
+                    if values[v] ~= index then
+                    -- count = count + 1                      -- We check if we find an id more than once its a neighbour - Current implementaion does not support diagonal neighbour search
+                        local vertex = values[v]                 -- vertex is the G_cache id of other octtree boxes
+                        if not results[vertex] then         
+                            results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
+                        else
+                            
+                            results[vertex] = results[vertex] + 1
+                            if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then -- A value of == 1 can access all 24 diagonals, == 2 means a node graph that has access to diagonals 12 dirs, == 4 can only move up down fwd back left right
+                                G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
+                                exit = true
+                                DebugLine(G_cache[index].pos,G_cache[vertex].pos)
+                                if not isNumberInTable(G_cache[vertex].nearby, index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
+                                    G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
+                                end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
+                            end
                         end
                     end
                 end
@@ -377,10 +420,13 @@ function determinNeighbours()
                 end
             end
         end
+        
+        coroutine.yield()
     G_cache[index].faces = nil
     end
     print("...Node graph completed\n")
-  --  DebugPrint(count)
+    progressMessage = "...Node graph completed\n"
+  --  Debugprint(count)
 end
 
 ------------------------------- Queue System + path api ----------------------------
@@ -520,7 +566,7 @@ function aStar(startPoint, endPoint)
 
         local cacheVal = G_cache[curNodeIndex]
         curDistModifier = AutoVecDist(cacheVal.pos, G_cache[endNodeIndex].pos)/startingDistance
-
+        
         for i = 1, #cacheVal.nearby do
             local neighbourIndex = cacheVal.nearby[i]
             local neighbour = G_cache[neighbourIndex]
@@ -537,7 +583,7 @@ function aStar(startPoint, endPoint)
                 else 
                     elevationChange = math.max(elevationChange-0.1,-1)
                 end
-                --DebugPrint(elevationChange)
+                --Debugprint(elevationChange)
 
                 local len = VecLength(dir)/3
                 local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbour.cost*curDistModifier + len*curDistModifier + dot*(10*math.max(curDistModifier,0.3))-(elevationChange*2)*curDistModifier --+ counter --*superCost
@@ -552,10 +598,10 @@ function aStar(startPoint, endPoint)
                         --stepCounter = counter
                     }
 
-                    drawlist[#drawlist+1] = {}
-                    drawlist[#drawlist].pos = {}
-                    drawlist[#drawlist].pos[1] = G_cache[neighbourIndex].pos
-                    drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
+                   drawlist[#drawlist+1] = {}
+                   drawlist[#drawlist].pos = {}
+                   drawlist[#drawlist].pos[1] = G_cache[neighbourIndex].pos
+                   drawlist[#drawlist].pos[2] = G_cache[curNodeIndex].pos
                   -- DebugLine(G_cache[curNodeIndex].pos,G_cache[neighbourIndex].pos)
 
                     
@@ -578,7 +624,7 @@ function retracePath(openNodes, startNode, endNode)
         end
         return reversedTable
     end
-
+    
     local wayPoints = {}
     local currentNode = endNode
 
@@ -698,3 +744,12 @@ end
         RegisterListenerTo("requestPath","addPathtoQueue")
         end
     end
+
+function draw()
+    UiPush()
+        UiTranslate(UiCenter(), UiHeight()-100)
+        UiAlign("center")
+        UiFont("bold.ttf", 24)
+        UiText(progressMessage)
+    UiPop()
+end
