@@ -15,6 +15,8 @@ function init()
     initDone = false
     initialize = coroutine.create(start)
     perTickLimit = 300
+
+    showVisuals = true 
 end
 
 function start()
@@ -135,6 +137,9 @@ end
 
 function tick(dt)
     if initDone == false then
+        if InputPressed("return") then 
+            showVisuals = not showVisuals
+        end
         for i=0,perTickLimit do
             coroutine.resume(initialize)
         end
@@ -309,7 +314,10 @@ function recursiveSearch(cache,t,depth,mainBodyT)
         QueryRequire("physical visible")                            -- Queryaabb is a simple bounds check and cylinder shapes inside would still count as occupied 
         local min,max = GetShapeBounds(checkShape[depth].shapes[i]) 
         local shapes = QueryAabbShapes(min,max)
-        AutoDrawAABB(min,max)
+        if showVisuals then
+            AutoDrawAABB(min,max)
+        end
+        
         if #shapes == 0 then
            calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)  -- If no shape was found we give it a cost of the current depth
         else                                                                    -- Cost is used to incourage a* to path find through larger octtree blocks 
@@ -365,7 +373,9 @@ function calculateGrid()
                 for y=p.min[2],p.max[2],1 do 
                     if not vertecies[x][y] then vertecies[x][y] = {} end
                     for z=p.min[3],p.max[3],1 do
+                        if showVisuals then
                         DebugCross(G_cache[index].pos)
+                        end
                         if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
                       --  if not isNumberInTable(vertecies[x][y][z],index) then
                         vertecies[x][y][z][#vertecies[x][y][z]+1] = index
@@ -407,7 +417,10 @@ function determinNeighbours()
                             if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then -- A value of == 1 can access all 24 diagonals, == 2 means a node graph that has access to diagonals 12 dirs, == 4 can only move up down fwd back left right
                                 G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                                 exit = true
-                                DebugLine(G_cache[index].pos,G_cache[vertex].pos)
+                                if showVisuals then
+                                    DebugLine(G_cache[index].pos,G_cache[vertex].pos)
+                                end
+                                
                                 if not isNumberInTable(G_cache[vertex].nearby, index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
                                     G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
                                 end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
@@ -751,5 +764,7 @@ function draw()
         UiAlign("center")
         UiFont("bold.ttf", 24)
         UiText(progressMessage)
+        UiTranslate(0,-20)
+        UiText("Press return to show debug: ".. tostring(showVisuals))
     UiPop()
 end
