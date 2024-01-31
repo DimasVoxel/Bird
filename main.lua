@@ -2,6 +2,7 @@
 #include /script/Automatic.lua
 #include /script/registry.lua
 #include /script/lualzw.lua
+#include "script/common.lua"
 ]]--
 
 -- Local is faster than global
@@ -15,8 +16,25 @@ function init()
     initDone = false
     initialize = coroutine.create(start)
     perTickLimit = 300
+    showVisuals = false 
+    canceled = false
 
-    showVisuals = true 
+    progressUIInit()
+end
+
+function progressUIInit()
+    ui = {}
+    ui.show = true 
+    ui.cancel = false 
+    ui.showDebug = false 
+    ui.slideVariable = 1
+    ui.introSlide = false
+    ui.timer = 1
+    ui.progress = 0
+    ui.endPhase = "false"
+    ui.messages = {}
+
+
 end
 
 function start()
@@ -37,7 +55,9 @@ function start()
         scanAll(true)
 
         vertecies = nil
+        ui.messages[#ui.messages+1] = "Activating Garbage collector"
         collectgarbage("collect")
+        
     else
         if compressRegistry then
             retrieveCompressedData()
@@ -48,7 +68,10 @@ function start()
 
     
     print("Final cleanup and API setup\n")
-    progressMessage = "Final cleanup and API setup\n"
+    ui.messages[#ui.messages+1] = "Retrieving data from cache"
+    ui.messages[#ui.messages+1] = "Final cleanup and API setup\n"
+    ui.messages[#ui.messages+1] = ""
+    ui.messages[#ui.messages+1] = "This panel will hide automatically in 3 seconds"
     RegisterListenerTo("requestPath","addPathtoQueue")
 
     queue = {}
@@ -60,7 +83,11 @@ function start()
 
     drawlist = {}
     initDone = true 
-    progressMessage = ""
+    ui.messages[#ui.messages+1] = ""
+    ui.endPhase = "complete"
+    ui.progress = 1
+
+    SetValueInTable(ui,"timer",-0.1,"linear",3)
 end
 
 function initCheckShape()
@@ -94,15 +121,17 @@ function retrieveData()
     local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
     for i=1,#keys do 
         print("G_cache Chunk: "..i.." out of "..#keys)
+        ui.messages[#ui.messages+1] = "G_cache Chunk: "..i.." out of "..#keys
         chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".gCache."..keys[i]))
     end
 
     G_cache = combineTableChunks(chunks)
-
+    ui.messages[#ui.messages+1] = ""
     local chunks = {}
     local keys = ListKeys("savegame.mod.birb."..mapName..".octGroup")
     for i=1,#keys do 
         print("octGroup Chunk: "..i.." out of "..#keys)
+        ui.messages[#ui.messages+1] = "octGroup Chunk: "..i.." out of "..#keys
         chunks[#chunks+1] = unserialize(GetString("savegame.mod.birb."..mapName..".octGroup."..keys[i]))
     end
 
@@ -115,18 +144,20 @@ function retrieveCompressedData()
     local keys = ListKeys("savegame.mod.birb."..mapName..".gCache")
     for i=1,#keys do 
         print("G_cache Chunk: "..i.." out of "..#keys)
-
+        ui.messages[#ui.messages+1] = "G_cache Chunk: "..i.." out of "..#keys
         local compressedBrokenString = GetString("savegame.mod.birb."..mapName..".gCache."..keys[i])
         local compressedString = loadstring('return ' ..compressedBrokenString)()
         chunks[#chunks+1] = unserialize(decompress(compressedString))
     end
 
     G_cache = combineTableChunks(chunks)
+    ui.messages[#ui.messages+1] = ""
 
     local chunks = {}
     local keys = ListKeys("savegame.mod.birb."..mapName..".octGroup")
     for i=1,#keys do 
         print("octGroup Chunk: "..i.." out of "..#keys)
+        ui.messages[#ui.messages+1] = "octGroup Chunk: "..i.." out of "..#keys
         local compressedBrokenString = GetString("savegame.mod.birb."..mapName..".octGroup."..keys[i])
         local compressedString = loadstring('return ' ..compressedBrokenString)()
         chunks[#chunks+1] = unserialize(decompress(compressedString))
@@ -135,36 +166,12 @@ function retrieveCompressedData()
     octGroup = combineTableChunks(chunks)
 end
 
-function tick(dt)
-    if initDone == false then
-        if InputPressed("return") then 
-            showVisuals = not showVisuals
-        end
-        for i=0,perTickLimit do
-            coroutine.resume(initialize)
-        end
-    else
-        if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
-        if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
-        queueWorker(dt)
-        debugDraw()
-    end
-end
-
-function debugDraw()
-    if InputDown("k") then
-    for i=1,#drawlist do 
-        -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
-         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
-     end
-    end
-end
 
 ------------------------------- Terrain Scanning and node graph Building -------------------------------
 
 function scanAll(cacheToRegistry)
     print("Start scanning process...")
-    progressMessage = "Start scanning process..."
+    ui.messages[#ui.messages+1] = "Start scanning process..."
     if not cacheToRegistry then cacheToRegistry = false end
     local min,max = GetBodyBounds(GetWorldBody())
     local minX,maxX = min[1],max[1]
@@ -175,7 +182,8 @@ function scanAll(cacheToRegistry)
     local totalIterations = math.floor((maxX - minX) / octtreeSize + 1) * math.floor((maxY - minY) / octtreeSize + 1) * math.floor((maxZ - minZ) / octtreeSize +1 )
 
     local currentIteration = 0
-
+    one = {}
+    oneDone = false
     local xi,yi,zi = 0,0,0
     --DebugLine(GetBodyTransform(checkShape[1].body).pos)
     for x=minX,maxX,octtreeSize do
@@ -215,6 +223,18 @@ function scanAll(cacheToRegistry)
                         G_cache[gIndex].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
                         G_cache[gIndex].nearby = {}
                         --cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
+                       
+
+                        
+                        if oneDone == false then 
+                            onedone = true 
+                             one.up = {min = {cmin[1], cmax[2], cmin[3]}, max = cmax}
+                             one.down = {min = cmin, max = {cmax[1], cmin[2], cmax[3]}}
+                             one.left = {min = cmin, max = {cmin[1], cmax[2], cmax[3]}}
+                            -- one.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
+                            -- one.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
+                             one.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
+                        end
 
                         octGroup[index].group[#octGroup[index].group+1] = gIndex
                         
@@ -223,14 +243,15 @@ function scanAll(cacheToRegistry)
                 
                 currentIteration = currentIteration + 1
                 local progress = (currentIteration / totalIterations) * 100
-                print("Progress: " .. math.ceil(progress) .. "%")
-                progressMessage = "Progress: " .. math.ceil(progress) .. "%"
-                SetString("level.loadingMessage",math.ceil(progress) .. "%")
+                print("Scanning: " .. math.ceil(progress) .. "%")
+                ui.messages[#ui.messages+1] = "Progress: " .. math.ceil(progress) .. "%"
+
+                ui.progress = progress/100/3
             end
         end
     end
     print("Scan Complete\n")
-    progressMessage = "Scan Complete\n"
+    ui.messages[#ui.messages+1] = "Scan Complete\n"
    -- AutoInspectWatch(octGroup," asd",1 ," ")
     perTickLimit = 4000
     calculateGrid() 
@@ -238,7 +259,7 @@ function scanAll(cacheToRegistry)
     determinNeighbours()
     perTickLimit = 1
     -- determinNeighboursOld()
-
+    
     --ClearKey("savegame.mod.birb")
     if cacheToRegistry then
         if compressRegistry then
@@ -256,12 +277,12 @@ end
 
 function writeCarcheCompressed()
     print("Caching results\n")
-    progressMessage = "Caching results\n"
-
+    ui.messages[#ui.messages+1] = "Caching results\n"
+    coroutine.yield()
     local tableChunks = splitTable(G_cache,100000)
     for i=1,#tableChunks do 
         print("Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%")
-        progressMessage = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
+        ui.messages[#ui.messages+1] = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
         coroutine.yield()
         local serializeTableString = serialize(tableChunks[i])
         local compressedString = string.format('%q',compress(serializeTableString))
@@ -273,7 +294,7 @@ function writeCarcheCompressed()
     for i=1,#tableChunks do 
         coroutine.yield()
         print("Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%")
-        progressMessage = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
+        ui.messages[#ui.messages+1] = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
 
         local serializeTableString = serialize(tableChunks[i])
         local compressedString = string.format('%q',compress(serializeTableString))
@@ -286,23 +307,22 @@ end
 
 function writeCache()
         print("Caching results\n")
+        ui.messages[#ui.messages+1] = ""
+        ui.messages[#ui.messages+1] = "Caching results\n"
 
         local tableChunks = splitTable(G_cache,20000)
         for i=1,#tableChunks do 
-            coroutine.yield()
             print("Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%")
-            progressMessage = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
+            ui.messages[#ui.messages+1] = "Preparing G_cache table for caching: "..math.floor(i/#tableChunks*100).."%"
             SetString("savegame.mod.birb."..mapName..".gCache."..i,serialize(tableChunks[i])) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
         end
         
         local tableChunks = splitTable(octGroup,25)
         for i=1,#tableChunks do 
-            coroutine.yield()
             print("Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%")
-            progressMessage = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
+            ui.messages[#ui.messages+1] = "Preparing octGroup table for caching: "..math.floor(i/#tableChunks*100).."%"
             SetString("savegame.mod.birb."..mapName..".octGroup."..i,serialize(tableChunks[i])) -- This part is very memory intensive. It can spike ram usage up to 16gb at its peak depending on the map
         end
-        coroutine.yield()
         SetBool("savegame.mod.birb."..mapName..".scanned",true)
 end
 
@@ -363,8 +383,9 @@ function calculateCost(min,max,cache,cost,depth)
 end
 
 function calculateGrid()
+    ui.messages[#ui.messages+1] = ""
     print("Creating Neighbour grid...")
-    progressMessage = "Creating Neighbour grid..."
+    ui.messages[#ui.messages+1] = "Creating Neighbour grid..."
     for index=1,#G_cache do
         local faces = G_cache[index].faces
         for dir,p in pairs(faces) do --p as in point either min or max
@@ -374,7 +395,7 @@ function calculateGrid()
                     if not vertecies[x][y] then vertecies[x][y] = {} end
                     for z=p.min[3],p.max[3],1 do
                         if showVisuals then
-                        DebugCross(G_cache[index].pos)
+                            DebugCross(G_cache[index].pos)
                         end
                         if not vertecies[x][y][z] then vertecies[x][y][z] = {} end
                       --  if not isNumberInTable(vertecies[x][y][z],index) then
@@ -384,18 +405,23 @@ function calculateGrid()
                 end
             end
         end
-        
+
+        ui.messages[#ui.messages+1] = "Creating Grid: "..  math.ceil(index/#G_cache*100) .. "%"
+        ui.progress = index/#G_cache/3+0.333
+
         coroutine.yield()
     end
     print("...Grid Completed\n")
-    progressMessage = "Creating Neighbour grid..."
+    ui.messages[#ui.messages+1] = "...Grid Completed"
+    ui.messages[#ui.messages+1] = ""
 end
 
+draws = {}
+
 function determinNeighbours()
-   -- count = 1
-    print("Finding neighbours...")
-    progressMessage = "Finding neighbours..."
-    
+    print("Creating node graph...")
+    ui.messages[#ui.messages+1] = "Creating node graph..."
+
     for index = 1, #G_cache do              -- This stores all octtree data
         local faces = G_cache[index].faces  -- We save all faces of the octtree boxes
         for dir, points in pairs(faces) do  -- Each face stores the min and max of the face 
@@ -403,6 +429,7 @@ function determinNeighbours()
             local results = {}
            -- local vert = calculateFaceCorners(p.min, p.max)
             for _,point in pairs(points) do 
+                
                 local x, y, z = point[1], point[2], point[3] -- To determin all neighbours near a box we build a completly new table
                 local values = vertecies[x][y][z]            -- This 3D table stores all G_cache ids at the mins and max of the faces
                 for v = 1, #values do                        -- To find a neighbour we check at vertex[min] and see which box shares it as well
@@ -412,15 +439,17 @@ function determinNeighbours()
                         if not results[vertex] then         
                             results[vertex] = 1                  -- Instead of having an unsorted table we do result[id] = how often it was found
                         else
-                            
                             results[vertex] = results[vertex] + 1
                             if results[vertex] == 2 and not isNumberInTable(G_cache[index].nearby, vertex) then -- A value of == 1 can access all 24 diagonals, == 2 means a node graph that has access to diagonals 12 dirs, == 4 can only move up down fwd back left right
                                 G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                                 exit = true
                                 if showVisuals then
                                     DebugLine(G_cache[index].pos,G_cache[vertex].pos)
+      
                                 end
-                                
+                                draws[#draws+1] = {}
+                                draws[#draws][1] = G_cache[index].pos
+                                draws[#draws][2] = G_cache[vertex].pos
                                 if not isNumberInTable(G_cache[vertex].nearby, index) then          -- When we found a neighbour we write it in our .nearby table but also in the others box
                                     G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index    -- This is done because small octtree boxes can be in the middle of a largers boxes face
                                 end                                                                -- The large box cannot find the smaller boxes though therefor we write it in the others table too we just need to check that this doesnt happen twice
@@ -433,13 +462,47 @@ function determinNeighbours()
                 end
             end
         end
-        
+        ui.progress = index/#G_cache/3+0.666
+        ui.messages[#ui.messages+1] = "Creating Node Graph: "..  math.ceil(index/#G_cache*100) .. "%"
         coroutine.yield()
-    G_cache[index].faces = nil
+        G_cache[index].faces = nil
     end
     print("...Node graph completed\n")
-    progressMessage = "...Node graph completed\n"
+    ui.messages[#ui.messages+1] = "...Node graph completed\n"
+    ui.messages[#ui.messages+1] = ""
   --  Debugprint(count)
+end
+
+
+function tick(dt)
+    if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
+    if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
+    if canceled == false then
+        if initDone == false then
+            for i=0,perTickLimit do
+                coroutine.resume(initialize)
+                if coroutine.status(initialize) == "dead" then break end
+            end
+        else
+            queueWorker(dt)
+            debugDraw()
+
+
+        end
+    end
+  -- for i=1,#draws do 
+  --     DebugLine(draws[i][1],draws[i][2])
+  -- end
+
+end
+
+function debugDraw()
+    if InputDown("k") then
+    for i=1,#drawlist do 
+        -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
+         DebugLine(drawlist[i].pos[1],drawlist[i].pos[2],1,0,1,0.4)
+     end
+    end
 end
 
 ------------------------------- Queue System + path api ----------------------------
@@ -599,7 +662,7 @@ function aStar(startPoint, endPoint)
                 --Debugprint(elevationChange)
 
                 local len = VecLength(dir)/3
-                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + neighbour.cost*curDistModifier + len*curDistModifier + dot*(10*math.max(curDistModifier,0.3))-(elevationChange*2)*curDistModifier --+ counter --*superCost
+                local costToNext = currentNode.gCost + math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + (neighbour.cost + len + dot*(10*math.max(curDistModifier,0.3))-(elevationChange*2))*curDistModifier --+ counter --*superCost
                 --local costToNext = currentNode.gCost +  math.max(VecDot(posDiff,VecNormalize(VecSub(endNode.pos,cacheVal.pos))),0) + (neighbour.cost + len + dot * 10 * math.max(curDistModifier, 0.3) - elevationChange * 4) * curDistModifier
                 coroutine_yield()
                 if not openNodes[neighbourIndex] or costToNext < openNodes[neighbourIndex].gCost then
@@ -759,14 +822,134 @@ end
     end
 
 function draw()
+
+    for face,maxima in pairs(one) do 
+        for m,points in pairs(maxima) do
+            AutoTooltip(face.." "..m,points,false,20)
+            DebugCross(points)
+
+        end 
+        
+    end
+
+    if canceled then return end 
     UiPush()
         UiTranslate(UiCenter(), UiHeight()-200)
         UiAlign("center")
         UiFont("bold.ttf", 24)
-        UiText(progressMessage)
+
         UiTranslate(0,50)
-        if not progressMessage == "" then
-        UiText("Press return to show debug: ".. tostring(showVisuals))
-        end
+      -- if ui.messages[#ui.messages+1] ~= "" then
+      --     UiText("Press RETURN to show debug: ".. tostring(showVisuals))
+      -- end
+      -- UiTranslate(0,50)
+      -- if ui.messages[#ui.messages+1] ~= "" then
+      --     UiText("Press C + N + E to cancel (Birds wont fly until you restart)")
+      -- end
+
     UiPop()
+
+    if ui.introSlide == false then 
+        SetValueInTable(ui,"slideVariable",0,"easeout",1)
+        ui.introSlide = true
+    end
+
+    if ui.endPhase == "complete" then 
+        SetValueInTable(ui,"timer",-0.1,"easeout",6)
+        ui.endPhase = "done"
+    end
+    if ui.timer < 0 then 
+        SetValueInTable(ui,"slideVariable",1.1,"easeout",1)
+    end
+    
+    local uiOffset = 450
+    local slideInValue = uiOffset * ui.slideVariable
+
+    UiTranslate(slideInValue,0)
+    UiPush()
+        UiAlign("right")
+        UiTranslate(UiWidth(),0)
+        UiPush()
+        UiColor(0.2,0.2,0.2,0.9)
+        UiRect(uiOffset,UiHeight())
+        UiPop()
+    UiPop()
+
+    UiPush()
+        UiAlign("right")
+        UiTranslate(UiWidth(),UiHeight()-200)
+        UiPush()
+            UiColor(0.1,0.1,0.1,0.2)
+            UiRect(uiOffset,200)
+            UiTranslate(-uiOffset+90,-50)
+            UiAlign("right")
+            progressBar(uiOffset-100, 40, ui.progress)
+
+            UiAlign("left")
+            UiColor(0.9,0.9,0.9,1)
+            UiFont("bold.ttf", 23)
+            UiPush()
+                UiTranslate(-84,25)
+                UiText("Progress")
+            UiPop()
+            UiTranslate(-80,80)
+            UiText("Press RETURN to show debug visuals (!!flashy!!)")
+            if InputPressed("return") then 
+                showVisuals = not showVisuals
+            end
+
+            UiTranslate(0,40)
+            UiText("Press H to hide this window")
+            if InputPressed("h") and ui.show == true then  
+                SetValueInTable(ui,"slideVariable",1.1,"easeout",1) 
+                ui.show = false 
+            elseif InputPressed("h") and ui.show == false and ui.endPhase then 
+                SetValueInTable(ui,"slideVariable",0,"easeout",1)
+                ui.show = true 
+            end
+
+            UiTranslate(0,40)
+            UiText("Press C + N + E to cancel the scan\nBirds wont fly until you restart!!!")
+            if InputDown("c") and InputDown("n") and InputDown("e") then 
+                canceled = true 
+                ui.messages[#ui.messages+1] = "Canceled"
+            end
+
+            UiTranslate(0,65)
+            UiText("Press C + L + A to clear savegame cache!")
+            if InputDown("c") and InputDown("n") and InputDown("e") then 
+                canceled = true 
+                ui.messages[#ui.messages+1] = "Canceled"
+            end
+        UiPop()
+    UiPop()
+
+    
+
+    if #ui.messages ~= 0 then
+        UiPush()
+            UiAlign("left")
+            UiColor(0.9,0.9,0.9,1)
+            UiFont("bold.ttf", 24)
+
+            UiPush()
+                UiAlign("center")
+                UiTranslate(UiWidth()-((uiOffset-20)/2),50)
+                UiText("Bird AI Setup Progress")
+            UiPop()
+
+            UiTranslate(UiWidth()-(uiOffset-20),50)
+
+            UiPush()
+            UiTranslate(0,25)
+            local amountOfMessages = math.abs(UiHeight()/25-17)
+            for i=math.floor(math.max(#ui.messages-amountOfMessages,1)),#ui.messages do 
+                UiTranslate(0,25)
+                UiText(ui.messages[i])
+            end 
+            UiPop()
+        UiPop()
+
+        
+    end
 end
