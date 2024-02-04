@@ -1,7 +1,7 @@
-name = Birb
+name = Birds - Beta
 author = DimasVoxel
-description = Informative description here
-tags = 
+description = [noupload]Birds! A new animal joints the scenery. This mod is in Beta and will be reuploaded once finished.
+tags = spawn, content
 
 # If description contains [noupload] the description on Steam workshop will not be overwritten.
 # Available tags (comma-separated):
