@@ -1,6 +1,0 @@
-<prefab version="1.5.2">
-	<group name="client" pos="0.0 -0.2 0.0">
-		<script pos="0.0 0.2 0.0" file="MOD/client.lua"/>
-	</group>
-</prefab>
-
