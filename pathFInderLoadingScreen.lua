@@ -15,9 +15,12 @@
 function init()
     initDone = false
     initialize = coroutine.create(start)
-    perTickLimit = 300
+    perTickLimit = 1000
     showVisuals = false 
     canceled = false
+
+    -- Temporary Until I find a way to managae savegame better
+    ClearKey("savegame.mod.birb")
 
     progressUIInit()
 end
@@ -33,13 +36,11 @@ function progressUIInit()
     ui.progress = 0
     ui.endPhase = "false"
     ui.messages = {}
-
-
 end
 
 function start()
 
-    checkShape = {}
+    checkTrigger = {}
     vertecies = {}
     G_cache = {}
     octGroup = {} 
@@ -51,13 +52,13 @@ function start()
     Spawn('<script pos="0.0 0.2 0.0" file="MOD/spawnbird.lua"/>',Transform())
     mapName = removeForwardSlashes(GetString("game.levelpath"))
     if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
-        initCheckShape()
+        initcheckTrigger()
+        
         scanAll(false)
 
         vertecies = nil
         ui.messages[#ui.messages+1] = "Activating Garbage collector"
         collectgarbage("collect")
-        
     else
         if compressRegistry then
             retrieveCompressedData()
@@ -90,27 +91,23 @@ function start()
     SetValueInTable(ui,"timer",-0.1,"linear",3)
 end
 
-function initCheckShape()
+function initcheckTrigger()
+    checkTrigger = {}
+
     Spawn("MOD/boxes.xml",Transform())
-    list = {}
-    list[#list+1] = FindBody("128",true)
-    list[#list+1] = FindBody("64",true)
-    list[#list+1] = FindBody("32",true)
-    list[#list+1] = FindBody("16",true)
-    list[#list+1] = FindBody("8",true)
-
-    local num = 128
-
+    local list = {}
+	list[#list+1] = FindTrigger("128",true)
+	list[#list+1] = FindTrigger("64",true)
+	list[#list+1] = FindTrigger("32",true)
+	list[#list+1] = FindTrigger("16",true)
+	list[#list+1] = FindTrigger("8",true)
     for i=1,#list do
-        checkShape[i] = {}
-        checkShape[i].size = num/i
-        checkShape[i].body = list[i]
-        checkShape[i].shapes = GetBodyShapes(list[i])
-        for j=1, # checkShape[i].shapes do
-            SetTag(checkShape[i].shapes[j],"invisible")
-            SetTag(checkShape[i].shapes[j],"unbreakable")
-            SetTag(checkShape[i].shapes[j],"ground")
-        end
+        checkTrigger[i] = {}
+        checkTrigger[i].trigger = list[i]
+        local min,max = GetTriggerBounds(list[i])
+        checkTrigger[i].size = VecLength(VecSub(Vec(min[1],0,0),Vec(max[1],0,0)))
+        checkTrigger[i].offset = Vec(-checkTrigger[i].size/2,-checkTrigger[i].size/2,-checkTrigger[i].size/2)
+        checkTrigger[i].cost = math.pow(2,i)/2
     end
 end
 
@@ -124,22 +121,27 @@ function scanAll(cacheToRegistry)
     local minX,maxX = min[1],max[1]
     local minY,maxY = min[2],max[2]
     local minZ,maxZ = min[3],max[3]
-    local octtreeSize = 32
+
+    local Tmin,Tmax = GetTriggerBounds(checkTrigger[1].trigger)
+    local octtreeSize = VecLength(VecSub(Vec(Tmin[1],0,0),Vec(Tmax[1],0,0)))*2
 
     local totalIterations = math.floor((maxX - minX) / octtreeSize + 1) * math.floor((maxY - minY) / octtreeSize + 1) * math.floor((maxZ - minZ) / octtreeSize +1 )
 
     local currentIteration = 0
     local xi,yi,zi = 0,0,0
-    --DebugLine(GetBodyTransform(checkShape[1].body).pos)
+    --DebugLine(GetBodyTransform(checkTrigger[1].body).pos)
     for x=minX,maxX,octtreeSize do
         for y=minY,maxY,octtreeSize do 
             for z=minZ,maxZ,octtreeSize do
-                globalt= Transform(Vec(x,y,z))
+                local size = checkTrigger[1].size
+                globalt = Transform(VecAdd(Vec(x,y,z),Vec(size,size,size)))
 
                 cache = {}
                 cache = recursiveSearch(cache,globalt,1)
-
-                local oMin,oMax = GetBodyBounds(list[1])
+               
+                local size = checkTrigger[1].size
+                local oMin,oMax = GetTriggerBounds(checkTrigger[1].trigger)
+                oMax = VecAdd(oMin,Vec(size,size,size))
 
                 local index = #octGroup+1
                 octGroup[index] = {}
@@ -164,7 +166,16 @@ function scanAll(cacheToRegistry)
                         G_cache[gIndex].faces.right = {min = {cmax[1], cmin[2], cmin[3]}, max = cmax}
                         G_cache[gIndex].faces.forward = {min = cmin, max = {cmax[1], cmax[2], cmin[3]}}
                         G_cache[gIndex].faces.backward = {min = {cmin[1], cmin[2], cmax[3]}, max = cmax}
-                        G_cache[gIndex].corners = getCubeCorners(cmin, cmax)
+                        G_cache[gIndex].corners = {
+                            {cmin[1], cmin[2], cmin[3]},
+                            {cmin[1], cmin[2], cmax[3]},
+                            {cmin[1], cmax[2], cmin[3]},
+                            {cmin[1], cmax[2], cmax[3]},
+                            {cmax[1], cmin[2], cmin[3]},
+                            {cmax[1], cmin[2], cmax[3]},
+                            {cmax[1], cmax[2], cmin[3]},
+                            {cmax[1], cmax[2], cmax[3]}
+                        }
                         G_cache[gIndex].nearby = {}
                         --cacheSort[cache[i].depth][#cacheSort[cache[i].depth]+1] = #G_cache
 
@@ -181,78 +192,63 @@ function scanAll(cacheToRegistry)
             end
         end
     end
+
     print("Scan Complete\n")
     ui.messages[#ui.messages+1] = "Scan Complete\n"
    -- AutoInspectWatch(octGroup," asd",1 ," ")
-    perTickLimit = 5000
-    calculateGrid() 
-    perTickLimit = 5000
-    determinNeighbours()
-    perTickLimit = 1
-    -- determinNeighboursOld()
-    
-    --ClearKey("savegame.mod.birb")
-    if cacheToRegistry then
-        if compressRegistry then
-            writeCarcheCompressed()
-        else
-            writeCache()
-        end
-    end
+  -- AutoInspectWatch(octGroup," asd",1 ," ")
+   perTickLimit = 5000
+   calculateGrid() 
 
-    for i=1,#checkShape do 
-        SetBodyTransform(checkShape[i].body,Transform(Vec(0,100000,0)))
-    end
+   perTickLimit = 5000
+   determinNeighbours()
+   perTickLimit = 1
+   -- determinNeighboursOld()
+   
+   --ClearKey("savegame.mod.birb")
+   if cacheToRegistry then
+       if compressRegistry then
+           writeCarcheCompressed()
+       else
+           writeCache()
+       end
+   end
 end
-
-
 
 function recursiveSearch(cache,t,depth)
-   -- local function vecFloor(vec)
-   --     return {math.floor(vec[1]),math.floor(vec[2]),math.floor(vec[3])}
-   -- end
-    coroutine.yield()
-    SetBodyTransform(checkShape[depth].body,t)                      -- This octtree checker works by moving a giant shape 
-    local cost = math.pow(2,depth)/2                                -- We do a queryaabb and see if there are any shapes in its bounds
-    for i=1, #checkShape[depth].shapes do                           -- After that we do a is a shape touching check. This is done because 
-        QueryRequire("physical visible")                            -- Queryaabb is a simple bounds check and cylinder shapes inside would still count as occupied 
-        local min,max = GetShapeBounds(checkShape[depth].shapes[i]) 
-        local shapes = QueryAabbShapes(min,max)
-        if showVisuals then
-            AutoDrawAABB(min,max)
-        end
+	coroutine.yield()
 
-        if #shapes == 0 then
-           calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)  -- If no shape was found we give it a cost of the current depth
-        else                                                                    -- Cost is used to incourage a* to path find through larger octtree blocks 
-            local none = true
-            if IsPointInWater(min) then 
-                if depth ~= #checkShape then
-                    cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1)
+    local data = checkTrigger[depth]
+    local trigger = data.trigger
+    local size = data.size
+    local cost = data.cost
+
+    t.pos = VecAdd(checkTrigger[depth].offset,t.pos) -- Offsetting transform because triggers origin is in the bottom middle instead of a corner of a box
+	for x=0,size,size do
+        for y=0,size,size do 
+            for z=0,size,size do 
+                local newT = Transform(VecAdd(Vec(x,y,z),t.pos))
+                SetTriggerTransform(trigger,newT)
+                if IsTriggerEmpty(trigger) then
+                    local min,max = GetTriggerBounds(trigger)
+                  --  if showVisuals then AutoDrawAABB(min,max) end
+                    calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
+                else 
+                    if depth ~= #checkTrigger then
+                        recursiveSearch(cache,newT,depth + 1)
+                    elseif depth == #checkTrigger then 
+                        local min,max = GetTriggerBounds(trigger)
+                        calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)
+                    end
                 end
-                none = false 
-            else
-                for j=1,#shapes do 
-                    if IsShapeTouching(checkShape[depth].shapes[i],shapes[j]) then
-                        if depth ~= #checkShape then
-                            cache = recursiveSearch(cache,GetShapeWorldTransform(checkShape[depth].shapes[i]),depth + 1)
-                        end
-                        none = false 
-                        break 
-                    end 
-                end
-            end
-            if none == true then 
-                calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
-           -- elseif water then 
-           --     calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-2,depth)
-            elseif depth == #checkShape then
-                calculateCost(AutoVecRound(min),AutoVecRound(max),cache,-1,depth)   -- -1 means this is not navigatable
             end
         end
     end
-    return cache
+	return cache
 end
+
+
+
 
 function calculateCost(min,max,cache,cost,depth)
     local index = #cache+1
@@ -284,7 +280,7 @@ function calculateGrid()
                         if not vertecies[x][y][z] then 
                             vertecies[x][y][z] = {} end
                       --  if not isNumberInTable(vertecies[x][y][z],index) then
-                        vertecies[x][y][z][#vertecies[x][y][z]+1] = index
+                         vertecies[x][y][z][#vertecies[x][y][z]+1] = index
                     --    end
                     end
                 end
@@ -330,8 +326,11 @@ function determinNeighbours()
                 if showVisuals then
                     DebugLine(G_cache[index].pos,G_cache[vertex].pos)
                 end
+            --   lines[#lines+1] = {}
+            --   lines[#lines][1] = G_cache[vertex].pos
+            --   lines[#lines][2] = G_cache[index].pos
 
-               G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index 
+                G_cache[vertex].nearby[#G_cache[vertex].nearby + 1] = index 
                 if G_cache[index].cost ~= G_cache[vertex].cost then
                     G_cache[index].nearby[#G_cache[index].nearby + 1] = vertex
                 end
@@ -354,20 +353,36 @@ end
 function tick(dt)
     if InputDown("c") and InputDown("l") then ClearKey("savegame.mod.birb."..mapName) end
     if InputDown("c") and InputDown("l") and InputDown("a") then ClearKey("savegame.mod.birb") end
-    if canceled == false then
-        if initDone == false then
-            for i=0,perTickLimit do
-                coroutine.resume(initialize)
-                if coroutine.status(initialize) == "dead" then break end
-            end
-        else
-            queueWorker(dt)
-            debugDraw()
-        end
-    end
+
+
+   --if InputPressed("k") then
+   --    playerT = TransformToParentPoint(GetPlayerTransform(),Vec(0,0,-30))
+   --end 
+
+   --if not playerT then playerT = Vec() end 
+
+   --local cache = {}
+   --recursiveSearch(cache,Transform(playerT),1)
+
+     if canceled == false then
+         if initDone == false then
+             for i=0,perTickLimit do
+                 coroutine.resume(initialize)
+                 if coroutine.status(initialize) == "dead" then break end
+             end
+         else
+             queueWorker(dt)
+             debugDraw()
+         end
+     end
+
+
 end
 
 function debugDraw()
+   --for i=1,#lines do 
+   --    DebugLine(lines[i][1],lines[i][2])
+   -- end
     if InputDown("k") then
         for i=1,#drawlist do 
             -- AutoTooltip(math.ceil(drawlist[i].cost),drawlist[i].pos[1],false,10,1)
