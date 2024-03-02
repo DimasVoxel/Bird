@@ -1,0 +1,21 @@
+<prefab version="1.5.3">
+	<group name="instance=MOD/Birds/magpie.xml" pos="0.0 0.0 0.1" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 0.4 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.0 0.05" dynamic="true">
+				<vox pos="-0.05 0.1 0.05" strength="2.5" file="MOD/Birds/magpie.vox" object="body"/>
+				<body tags="head" pos="-0.0 0.36 -0.26" dynamic="true">
+					<vox pos="-0.05 -0.061 -0.09" file="MOD/Birds/magpie.vox" object="head"/>
+				</body>
+				<vox pos="0.023 -0.061 -0.04" rot="0.0 0.0 0.0" file="MOD/Birds/magpie.vox" object="body_r"/>
+				<vox pos="-0.107 -0.061 -0.04" rot="0.0 0.0 0.0" file="MOD/Birds/magpie.vox" object="body_l"/>
+				<body tags="right wing" pos="0.1 0.35 -0.14" rot="0.0 0.0 20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.01 -0.196 0.27" rot="0.0 -5.0 9.0" file="MOD/Birds/magpie.vox" object="wing2"/>
+				</body>
+				<body tags="wing left" pos="-0.1 0.35 -0.14" rot="0.0 0.0 -20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.082 -0.178 0.28" rot="0.0 6.0 -9.0" strength="2.5" file="MOD/Birds/magpie.vox" object="wing2"/>
+				</body>
+			</body>
+		</script>
+	</group>
+</prefab>
+

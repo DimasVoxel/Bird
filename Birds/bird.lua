@@ -36,7 +36,7 @@ function behaviourTableInit()
                 { "idle", 60 },
                 { "peck", 12 },
                 { "walk", 25 },
-                { "fly", 2 },
+                { "fly", 5 },
             },
             totalPercent = 0
         },
@@ -58,7 +58,18 @@ function behaviourTableInit()
 end
 
 function behaviourStack()
-    
+    stack = {}
+    stack.queue = {}
+end
+
+function stackEntry(time,behaviour)
+    local index = #stack.queue+1
+
+    time = time or 1
+    behaviour = behaviour or "idle"
+
+    stack.queue[index].timer = time
+    stack.queue[index].behaviour = behaviour
 end
 
 function stateInit()
@@ -68,7 +79,6 @@ function stateInit()
     state.randomEventDuration = 0
     state.eventInitialized = false
 end
-
 
 function animationInit()
     animation = {}
@@ -143,7 +153,7 @@ end
 function birdUpdate(dt)
 
     if bird.alive == false then return end 
-
+    if InputDown("o") then DebugLine(bird.transform.pos,GetPlayerPos()) end
     for i=1,#bird.wings do 
         if IsBodyBroken(bird.wings[i].body) then bird.canFly = false end 
     end
@@ -200,6 +210,7 @@ function birdUpdate(dt)
     end
 
 
+    -- This shit is only here in case 
     local x,y,z = GetQuatEuler(TransformToLocalTransform(bird.transform,bird.wings[1].transform).rot)
 
     if checkDeviation(x, y, z) then 
@@ -288,8 +299,10 @@ function debug()
 end
 
 function draw(dt)
-   -- debug()
-    if InputDown("o") then DebugLine(bird.transform.pos,GetPlayerPos()) end
+    if InputDown("k") then
+        debug()
+    end
+
 end
 
 
@@ -506,21 +519,21 @@ function birdMovement()
     --ConstrainOrientation(bird.body,0,bird.transform.rot,Quat(),10,10)
 
     if bird.onGround == true then
-    local cross = VecCross(Vec(0, -1, 0), bird.up)
-    ConstrainAngularVelocity(bird.body,0,cross,1)
-   
+        local cross = VecCross(Vec(0, -1, 0), bird.up)
+        ConstrainAngularVelocity(bird.body,0,cross,1)
+    
 
-    -- Basic anti wall avoidance behavior
-    QueryRequire("physical visible")
-    for i=1,#bird.allBodies do 
-        QueryRejectBody(bird.allBodies[i])
-    end
-    local hit,_,normal = QueryRaycast(bird.head.transform.pos,bird.fwd,2,0.2,false)
-    if hit then 
-        local cross = VecCross(VecNormalize(Vec(normal[1],0,normal[3])), bird.fwd)
-        ConstrainAngularVelocity(bird.body,0,cross,-0.5)
-    end
-end 
+        -- Basic anti wall avoidance behavior
+        QueryRequire("physical visible")
+        for i=1,#bird.allBodies do 
+            QueryRejectBody(bird.allBodies[i])
+        end
+        local hit,_,normal = QueryRaycast(bird.head.transform.pos,bird.fwd,2,0.2,false)
+        if hit then 
+            local cross = VecCross(VecNormalize(Vec(normal[1],0,normal[3])), bird.fwd)
+            ConstrainAngularVelocity(bird.body,0,cross,-0.5)
+        end
+    end 
   --  local playerFwd = TransformToParentVec(GetPlayerTransform(), Vec(0, 0, -1))
   --  local cross = VecCross(playerFwd, bird.up)
   --  local dot = 0.5 - VecDot(bird.fwd, playerFwd)
@@ -631,7 +644,7 @@ function pathPostProcessor(data)
     knots[#knots+1] = dataPath[#dataPath].pos
     knots[#knots+1] = data.endPos
 
-    if #knots > 3 then
+    if #knots > 4 then
         pathData[#pathData+1] = {}
         pathData[#pathData].startPos = data.startPos
         pathData[#pathData].endPos = data.endPos
@@ -654,7 +667,7 @@ function buildCardinalSpline(knots,precision,data)
 
     --Linear spline to cardinal spline https://youtu.be/jvPPXbo87ds?t=2656
 
-    local magicNumber = 4.1
+    local magicNumber = 4.1 -- Magic number explained https://youtu.be/jvPPXbo87ds?t=2824
     for i=1, #knots do
         if i ~= #knots-2 then 
             -- # Hermite to bezier conversion https://youtu.be/jvPPXbo87ds?t=2528
