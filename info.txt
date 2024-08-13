@@ -1,6 +1,6 @@
 name = Birds - Beta
 author = DimasVoxel
-description = [noupload]Birds! A new animal joints the scenery. This mod is in Beta and will be reuploaded once finished.
+description = [noupload]Birds! A new animal joins the scenery. Enhance your world with 19 new bird species! Go find them all
 tags = spawn, content
 
 # If description contains [noupload] the description on Steam workshop will not be overwritten.
