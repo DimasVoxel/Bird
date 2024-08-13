@@ -1,0 +1,19 @@
+<prefab version="1.5.4">
+	<group name="instance=MOD/Birds/Red_velvet.xml" pos="0.0 0.35 -7.445" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 -0.05 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.2 -0.26" dynamic="true">
+				<vox pos="-0.05 0.0 0.26" strength="2.5" file="MOD/Birds/Red_Velvet_Bulbul.vox" object="body"/>
+				<body tags="head" pos="0.0 0.39 -0.24" dynamic="true">
+					<vox pos="-0.05 -0.09 -0.2" file="MOD/Birds/Red_Velvet_Bulbul.vox" object="head"/>
+				</body>
+				<body tags="right wing" pos="0.055 0.39 -0.09" rot="0.0 12.0 20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.01893 -0.15183 0.28093" rot="0.0 -4.0 0.0" file="MOD/Birds/Red_Velvet_Bulbul.vox" object="wing2"/>
+				</body>
+				<body tags="wing left" pos="-0.06 0.365 -0.095" rot="0.0 -12.0 -20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.08631 -0.12547 0.29179" rot="0.0 4.0 0.0" strength="2.5" file="MOD/Birds/Red_Velvet_Bulbul.vox" object="wing2"/>
+				</body>
+			</body>
+		</script>
+	</group>
+</prefab>
+

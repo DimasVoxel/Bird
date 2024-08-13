@@ -1,0 +1,21 @@
+<prefab version="1.5.4">
+	<group name="instance=MOD/Birds/Swift.xml" pos="0.0 0.35 -9.64" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 -0.05 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.1 -0.05" dynamic="true">
+				<vox pos="-0.05 0.0 -0.05" strength="2.5" file="MOD/Birds/Swift.vox" object="body"/>
+				<vox pos="0.0 0.22 0.33" rot="-9.4 19.7 -3.4" strength="2.5" file="MOD/Birds/Swift.vox" object="tail"/>
+				<vox pos="-0.1 0.21479 0.30046" rot="-9.4 -19.7 3.4" strength="2.5" file="MOD/Birds/Swift.vox" object="tail"/>
+				<body tags="head" pos="0.0 0.3 -0.25" dynamic="true">
+					<vox pos="-0.05 -0.0 -0.1" file="MOD/Birds/Swift.vox" object="head"/>
+				</body>
+				<body tags="right wing" pos="0.075 0.275 -0.155" rot="0.0 12.0 20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.047 -0.153 0.245" rot="0.0 -4.0 0.0" file="MOD/Birds/Swift.vox" object="wing2"/>
+				</body>
+				<body tags="wing left" pos="-0.095 0.25 -0.145" rot="0.0 -12.0 -20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.045 -0.125 0.241" rot="0.0 4.0 0.0" strength="2.5" file="MOD/Birds/Swift.vox" object="wing2"/>
+				</body>
+			</body>
+		</script>
+	</group>
+</prefab>
+

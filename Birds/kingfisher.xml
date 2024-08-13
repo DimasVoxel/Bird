@@ -1,0 +1,21 @@
+<prefab version="1.5.4">
+	<group name="instance=MOD/Birds/kingfisher.xml" pos="0.0 0.35 -6.645" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 -0.05 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.08 -0.05" dynamic="true">
+				<vox pos="-0.05 0.12 0.05" strength="2.5" file="MOD/Birds/Kingfisher.vox" object="body"/>
+				<vox pos="-0.11 0.02 0.05" strength="2.5" file="MOD/Birds/Kingfisher.vox" object="leg"/>
+				<vox pos="0.0 0.02 0.05" strength="2.5" file="MOD/Birds/Kingfisher.vox" object="leg"/>
+				<body tags="head" pos="0.0 0.34 -0.2" dynamic="true">
+					<vox pos="-0.05 -0.02 -0.15" file="MOD/Birds/Kingfisher.vox" object="head"/>
+				</body>
+				<body tags="right wing" pos="0.045 0.32 -0.11" rot="0.0 12.0 20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="0.00874 -0.16201 0.09295" rot="0.0 -4.0 0.0" file="MOD/Birds/Kingfisher.vox" object="wing2"/>
+				</body>
+				<body tags="wing left" pos="-0.05 0.295 -0.105" rot="0.0 -12.0 -20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.10665 -0.13342 0.0922" rot="0.0 4.0 0.0" strength="2.5" file="MOD/Birds/Kingfisher.vox" object="wing2"/>
+				</body>
+			</body>
+		</script>
+	</group>
+</prefab>
+

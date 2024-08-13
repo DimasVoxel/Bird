@@ -1,0 +1,21 @@
+<prefab version="1.5.4">
+	<group name="instance=MOD/Birds/Robin.xml" pos="0.0 0.35 -8.05" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 -0.05 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.1 0.05" dynamic="true">
+				<vox pos="-0.05 0.1 0.05" strength="2.5" file="MOD/Birds/Robin.vox" object="body"/>
+				<vox pos="-0.11 0.0 0.05" strength="2.5" file="MOD/Birds/Robin.vox" object="leg"/>
+				<vox pos="0.01 0.0 0.05" strength="2.5" file="MOD/Birds/Robin.vox" object="leg"/>
+				<body tags="head" pos="0.0 0.33 -0.15" dynamic="true">
+					<vox pos="-0.05 -0.03 -0.1" file="MOD/Birds/Robin.vox" object="head"/>
+				</body>
+				<body tags="right wing" pos="0.065 0.275 -0.135" rot="0.0 12.0 20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.03099 -0.15838 0.16691" rot="0.0 -4.0 0.0" file="MOD/Birds/Robin.vox" object="wing2"/>
+				</body>
+				<body tags="wing left" pos="-0.065 0.25 -0.135" rot="0.0 -12.0 -20.0" dynamic="true">
+					<vox tags="wing right yOffset=-1 zOffset=-3 xOffset=1" pos="-0.07901 -0.13738 0.16691" rot="0.0 4.0 0.0" strength="2.5" file="MOD/Birds/Robin.vox" object="wing2"/>
+				</body>
+			</body>
+		</script>
+	</group>
+</prefab>
+

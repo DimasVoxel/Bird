@@ -1,0 +1,20 @@
+<prefab version="1.5.3">
+	<group name="instance=MOD/Birds/pukeko.xml" pos="0.0 -0.1 3.17" rot="0.0 -90.0 0.0">
+		<script pos="-0.1 0.4 0.0" file="MOD/Birds/bird.lua">
+			<body tags="bird" pos="0.15 0.0 0.05" dynamic="true">
+				<vox pos="0.0 0.0 0.0" strength="2.5" file="MOD/Birds/pukeko.vox" object="body"/>
+				<body tags="head" pos="0.0 0.55 -0.25" rot="-10.0 0.0 0.0" dynamic="true">
+					<vox pos="0.0 -0.11585 -0.21888" file="MOD/Birds/pukeko.vox" object="head"/>
+				</body>
+				<body tags="left wing" pos="-0.1 0.55 -0.15" rot="-10.2 -1.8 -9.8" dynamic="true">
+					<vox tags="wing right yOffset=1 zOffset=0 xOffset=0" pos="-0.03795 -0.36172 0.4" rot="0.0 0.0 0" file="MOD/Birds/pukeko.vox" object="wing_l"/>
+				</body>
+				<body tags="wing right" pos="0.2 0.55 -0.15" rot="-10.2 1.8 9.8" dynamic="true">
+					<vox tags="wing right yOffset=1 zOffset=0 xOffset=0" pos="-0.06105 -0.34472 0.4" rot="0.0 0.0 0" strength="2.5" file="MOD/Birds/pukeko.vox" object="wing_r"/>
+				</body>
+				<vox pos="0.0 0.3 0.5" rot="-10.0 0.0 0.0" file="MOD/Birds/pukeko.vox" object="tail"/>
+			</body>
+		</script>
+	</group>
+</prefab>
+
