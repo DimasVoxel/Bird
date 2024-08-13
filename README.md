@@ -1,7 +1,7 @@
 # Teardown Bird Mod
 
 
-https://github.com/user-attachments/assets/53868fac-fbc6-48b0-bf5a-2ed6270a93dd
+https://github.com/user-attachments/assets/f27de499-2dc5-425c-af4a-e8e007eb9f41
 
 
 ---
@@ -22,14 +22,16 @@ This mod was submitted for the **38 Mod Contest** and won **second place**!
 
 ### Custom scanner ###
 
-https://github.com/user-attachments/assets/f8434e97-46bb-4abf-8f63-8116dcdb531b
+
+https://github.com/user-attachments/assets/d41f2fbb-94c0-4c62-93a7-298908f55837
+
 
 ### Custom Path finding and navigation ###
 
-https://github.com/user-attachments/assets/5fbb281d-1e24-4b0b-b652-effb123df305
 
+https://github.com/user-attachments/assets/654fb903-fe9b-4094-84dd-2ee6af8472bf
 
+https://github.com/user-attachments/assets/31f87d31-0777-4fc2-a427-fcd920b91980
 
-https://github.com/user-attachments/assets/f7877d4d-81a0-4fe6-97e6-4f5c1ac2bda9
 
 
