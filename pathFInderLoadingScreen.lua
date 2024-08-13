@@ -49,7 +49,6 @@ function start()
     starRoutine = coroutine.create(aStar)
 
   --  Spawn("MOD/client.xml",Transform())
-    Spawn('<script pos="0.0 0.2 0.0" file="MOD/spawnbird.lua"/>',Transform())
     mapName = removeForwardSlashes(GetString("game.levelpath"))
     if GetBool("savegame.mod.birb."..mapName..".scanned",false) ~= true then
         initcheckTrigger()
@@ -67,6 +66,7 @@ function start()
         end
     end
 
+    Spawn('<script pos="0.0 0.2 0.0" file="MOD/spawnbird.lua"/>',Transform())
     
     print("Final cleanup and API setup\n")
     ui.messages[#ui.messages+1] = "Retrieving data from cache"
@@ -94,7 +94,7 @@ end
 function initcheckTrigger()
     checkTrigger = {}
 
-    Spawn("MOD/boxes.xml",Transform())
+    Spawn("MOD/spawnables/boxes.xml",Transform())
     local list = {}
 	list[#list+1] = FindTrigger("128",true)
 	list[#list+1] = FindTrigger("64",true)
@@ -231,7 +231,7 @@ function recursiveSearch(cache,t,depth)
                 SetTriggerTransform(trigger,newT)
                 if IsTriggerEmpty(trigger) then
                     local min,max = GetTriggerBounds(trigger)
-                  --  if showVisuals then AutoDrawAABB(min,max) end
+                    if showVisuals then AutoDrawAABB(min,max) end
                     calculateCost(AutoVecRound(min),AutoVecRound(max),cache,cost,depth)
                 else 
                     if depth ~= #checkTrigger then
