@@ -7,9 +7,6 @@
 
 -- Local is faster than global
 --local cacheSort = {}
-
-
-
 --local spatialSort = {}
 
 function init()
